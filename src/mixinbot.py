@@ -35,14 +35,6 @@ class SavedQuestion:
     user_id: str
     data: str
 
-def _handle_task_result(task: asyncio.Task) -> None:
-    try:
-        task.result()
-    except asyncio.CancelledError:
-        pass  # Task cancellation should not be logged as an error.
-    except Exception:  # pylint: disable=broad-except
-        logging.exception('Exception raised by task = %r', task)
-
 class MixinBot(MixinWSApi):
     def __init__(self, config_file):
         f = open(config_file)
@@ -120,8 +112,6 @@ class MixinBot(MixinWSApi):
                 pass
             await self.sendUserText(conversation_id, user_id, "[END]")
             return True
-        # except TooManyRequestsException as e:
-        #     bot.standby = True
         except Exception as e:
             logger.exception(e)
         self.save_question(conversation_id, user_id, message)
@@ -132,7 +122,7 @@ class MixinBot(MixinWSApi):
         if not bot:
             logger.info('no available bot')
             self.save_question(conversation_id, user_id, message)
-            #queue message
+            #TODO: queue message
             return False
         msgs: List[str] = []
         try:
@@ -140,8 +130,6 @@ class MixinBot(MixinWSApi):
                 msgs.append(msg)
             await self.sendUserText(conversation_id, user_id, ''.join(msgs) + '\n[END]')
             return True
-        # except TooManyRequestsException as e:
-        #     logger.exception(e)
         except Exception as e:
             logger.exception(e)
         self.save_question(conversation_id, user_id, message)
@@ -237,7 +225,7 @@ class MixinBot(MixinWSApi):
             while not self.paused:
                 try:
                     await super().run()
-                except websockets.exceptions.ConnectionClosedError:
+                except websockets.exceptions.ConnectionClosedError as e:
                     logger.exception(e)
                     self.ws = None
         except asyncio.CancelledError:
@@ -258,10 +246,6 @@ def exception_handler(loop, context):
 
 async def start(config_file):
     global bot
-    loop = asyncio.get_running_loop()
-    # loop.set_exception_handler(exception_handler)
-
-    # raise Exception('oops!!!!')
     bot = MixinBot(config_file)
     await bot.init()
     asyncio.create_task(bot.run())

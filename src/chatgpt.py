@@ -55,7 +55,7 @@ class MessageParser:
             pos = self.pos
             self.pos = last_index + 2
             self.start = time.time()
-            return self.message[pos: self.pos].strip()
+            return self.message[pos: self.pos]
         except ValueError:
             return None
 
