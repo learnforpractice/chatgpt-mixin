@@ -1,7 +1,10 @@
 # Byte-compiled / optimized / DLL files
+logfile.log
 __pycache__/
 *.py[cod]
 *$py.class
+
+cp.sh
 
 # C extensions
 *.so
