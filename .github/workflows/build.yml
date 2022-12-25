@@ -19,7 +19,7 @@ jobs:
       run:
         shell: bash
     env:
-      GSCDK_VERSION: 0.5.0
+      VERSION: 0.1.0
     strategy:
       matrix:
         python-version: [3.9]
@@ -37,9 +37,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install wheel
-          python -m pip install twine
+          python -m pip install -U pip
+          python -m pip install -U setuptools
+          python -m pip install -U wheel
       - name: Build
         run: |
           python setup.py sdist bdist_wheel
@@ -52,7 +52,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            ./dist/${{ steps.whlfile.outputs.value }}
+            ./dist/chatgpt_mixin-${{ env.VERSION }}-py3-none-any.whl
       - name: Publish a Python distribution to PyPI
         if: ${{ startsWith(github.ref, 'refs/tags/') && matrix.os == 'ubuntu-18.04' }}
         uses: pypa/gh-action-pypi-publish@release/v1
