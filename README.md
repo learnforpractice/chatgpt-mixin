@@ -38,8 +38,10 @@ accounts:
    psw: ""
 ```
 
-`bot_config` section specify mixin bot configure. `accounts` section specify chatgpt test accounts. `user` field can not be empty, but you can leave `psw` to empty. If you leave `psw` to empty, you need to input the password manually during the login process. You can specify multiple accounts in the `accounts` section to improve chatgpt responses.
+`bot_config` section specify mixin bot configure. `accounts` section specify chatgpt test accounts. `user` field can not be empty, but you can leave `psw` to empty. If it is left empty, the user will need to manually enter the password upon login. Multiple accounts can be specified in the accounts section to improve ChatGPT responses.
 
-If you are running a bot in a server, you need to install `Xvfb` on the server, and use `VNC` at the client side to connect to `Xvfb`. See [Remote_control_over_SSH](https://en.wikipedia.org/wiki/Xvfb#Remote_control_over_SSH) for more information.
+If you are running a bot in a server, you need to install `Xvfb` on the server, and use `VNC` at the client side to connect to `Xvfb`. For more information, refer to [Remote_control_over_SSH](https://en.wikipedia.org/wiki/Xvfb#Remote_control_over_SSH).
 
-On the first time you start this bot, some automation will be performed by this bot such as auto fill account name and password, but you still need to solve CAPTCHAs manually during the login. 
+
+On the first time you start this bot, automated processes such as auto-filling of account names and passwords will be carried out, but you will still need to manually solve CAPTCHAs during the login process.
+
