@@ -57,9 +57,8 @@ class MixinBot(MixinWSApi):
             self.developer_conversation_id = config['developer_conversation_id']
             self.developer_user_id = config['developer_user_id']
 
-        self.bots: Set[ChatGPTBot] = set()
-        self.standby_bots: Set[ChatGPTBot] = set()
-
+        self.bots: List[ChatGPTBot] = []
+        self.standby_bots: List[ChatGPTBot] = []
         self._paused = False
 
     @property
@@ -77,26 +76,29 @@ class MixinBot(MixinWSApi):
             psw = account['psw']
             bot = ChatGPTBot(PLAY, user, psw)
             await bot.init()
-            self.bots.add(bot)
+            self.bots.append(bot)
 
-    def get_available_bot(self):
-        bot: Optional[ChatGPTBot] = None
-        for _bot in self.bots:
-            if _bot.standby:
+    def choose_bot(self, user_id):
+        bots = []
+        for bot in self.bots:
+            if bot.standby:
                 continue
-            if not _bot.busy:
-                _bot.busy = True
-                bot = _bot
-                break
-        return bot
+            bots.append(bot)
+
+        for bot in bots:
+            if user_id in bot.users:
+                return bot
+
+        bot_index = 0
+        user_counts = [len(bot.users) for bot in bots]
+        try:
+            bot_index = user_counts.index(min(user_counts))
+            return bots[bot_index]
+        except ValueError:
+            return None
 
     async def send_message_to_chat_gpt(self, conversation_id: str, user_id: str, message: str):
-        bot = None
-        for _ in range(60):
-            bot = self.get_available_bot()
-            if bot:
-                break
-            await asyncio.sleep(1.0)
+        bot = self.choose_bot(user_id)
         if not bot:
             logger.info('no available bot')
             self.save_question(conversation_id, user_id, message)
@@ -104,7 +106,7 @@ class MixinBot(MixinWSApi):
             return False
         try:
             count = 0
-            async for msg in bot.send_message(message):
+            async for msg in bot.send_message(user_id, message):
                 await self.sendUserText(conversation_id, user_id, msg)
                 count += 1
             await asyncio.sleep(1.0)
@@ -118,7 +120,7 @@ class MixinBot(MixinWSApi):
         return False
 
     async def send_message_to_chat_gpt2(self, conversation_id, user_id, message):
-        bot = self.get_available_bot()
+        bot = self.choose_bot(user_id)
         if not bot:
             logger.info('no available bot')
             self.save_question(conversation_id, user_id, message)
@@ -126,7 +128,7 @@ class MixinBot(MixinWSApi):
             return False
         msgs: List[str] = []
         try:
-            async for msg in bot.send_message(message):
+            async for msg in bot.send_message(user_id, message):
                 msgs.append(msg)
             await self.sendUserText(conversation_id, user_id, ''.join(msgs) + '\n[END]')
             return True

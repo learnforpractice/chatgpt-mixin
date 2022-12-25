@@ -62,6 +62,14 @@ class MessageParser:
     def get_remanent_message(self):
         return self.message[self.pos:]
 
+class ChatGPTUser:
+
+    def __init__(self, user_id: str):
+        self.user_id = user_id
+        self.conversation_id = None
+        self.parent_message_id = None
+        self.start_time = time.time()
+
 class ChatGPTBot:
 
     def __init__(self, PLAY: Any, user: str, password: str):
@@ -73,11 +81,13 @@ class ChatGPTBot:
         self.password = password
         self._standby: bool = False
         self._busy: bool = False
+
         self.lock = asyncio.Lock()
 
         self.conversation_id = None
         self.parent_message_id = None
-        self.message_id = None
+
+        self.users: Dict[str, ChatGPTUser] = {}
 
         self.alive_counter = 0
 
@@ -97,14 +107,26 @@ class ChatGPTBot:
     def busy(self, value):
         self._busy = value
 
+    def clear_users(self):
+        self.users = {}
+
+    def delete_user(self, user_id):
+        try:
+            del self.users[user_id]
+        except KeyError:
+            pass
+
     def reset_alive_counter(self):
         self.alive_counter = 0
 
     async def keep_alive(self):
         while True:
             while self.alive_counter < 60*15:
-                self.alive_counter += 1
-                await asyncio.sleep(1.0)
+                self.alive_counter += 10
+                for user in self.users:
+                    if time.time() - user.start_time > 60*15:
+                        self.delete_user(user.user_id)
+                await asyncio.sleep(10.0)
             self.reset_alive_counter()
             try:
                 logger.info("keep alive")
@@ -113,7 +135,7 @@ class ChatGPTBot:
                 if self.standby:
                     try:
                         msg = auto_send_messages[random.randint(0, len(auto_send_messages) - 1)]
-                        async for msg in self.send_message(msg):
+                        async for msg in self.send_message('main', msg):
                             logger.info(msg)
                             break
                         self.standby = False
@@ -218,29 +240,35 @@ class ChatGPTBot:
     async def reload(self):
         await self.page.reload()
 
-    async def send_message(self, message):
+    async def send_message(self, user_id, message):
         try:
             async with self.lock:
+                if user_id in self.users:
+                    user = self.users[user_id]
+                else:
+                    user = ChatGPTUser(user_id)
+                    self.users[user_id] = user
+                user.start_time = time.time()
                 self.busy = True
-                async for msg in self._send_message(message):
+                async for msg in self._send_message(user, message):
                     yield msg
         finally:
             self.busy = False
         return
 
-    async def _send_message(self, message):
-        self.message_id = str(uuid.uuid4())
-        if not self.parent_message_id:
-            self.parent_message_id = str(uuid.uuid4())
+    async def _send_message(self, user, message):
+        message_id = str(uuid.uuid4())
+        if not user.parent_message_id:
+            user.parent_message_id = str(uuid.uuid4())
 
         parser = MessageParser()
 
-        logger.info("++++++message_id: %s, parent_message_id: %s", self.message_id, self.parent_message_id)
+        logger.info("++++++message_id: %s, parent_message_id: %s", message_id, user.parent_message_id)
         body = {
             "action": "next",
             "messages": [
                 {
-                    "id": self.message_id,
+                    "id": message_id,
                     "role": 'user',
                     "content": {
                         "content_type": 'text',
@@ -249,11 +277,11 @@ class ChatGPTBot:
                 }
             ],
             "model": 'text-davinci-002-render',
-            "parent_message_id": self.parent_message_id
+            "parent_message_id": user.parent_message_id
         }
 
-        if self.conversation_id:
-            body['conversation_id'] = self.conversation_id
+        if user.conversation_id:
+            body['conversation_id'] = user.conversation_id
 
         url = "https://chat.openai.com/backend-api/conversation"
 
@@ -292,18 +320,20 @@ class ChatGPTBot:
             try:
                 detail = json.loads(ret)
             except Exception as e:
-                logger.exception(e)
+#                logger.exception(e)
+                pass
 
             if detail:
                 if 'Rate limit reached' in detail['detail']['message']:
                     self.standby = True
+                    self.clear_users()
                     raise ChatGPTException(ret)
-                    return
             if 'Too many requests' in ret:
                 self.standby = True
+                self.clear_users()
                 raise TooManyRequestsException(ret)
             raise ChatGPTException(ret)
-
+        yield "[BEGIN]\n"
         done = False
         buffer = b''
         while not done:
@@ -326,8 +356,8 @@ class ChatGPTBot:
                     done = True
                     break
                 msg = json.loads(msg)
-                self.conversation_id = msg['conversation_id']
-                self.parent_message_id = msg['message']['id']
+                user.conversation_id = msg['conversation_id']
+                user.parent_message_id = msg['message']['id']
                 parser.feed(msg['message']['content']['parts'][0])
                 message = parser.get_message()
                 if message:
