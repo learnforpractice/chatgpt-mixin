@@ -6,7 +6,7 @@ on unix like platform, install `chatgpt-mixin` with the following command.
 
 ```bash
 python3 -m pip install chatgpt-mixin
-playwright install
+playwright install firefox
 ```
 
 on the Windows platform, use the following command to install `chatgpt-mixin`:
