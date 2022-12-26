@@ -18,5 +18,5 @@ setup(
         'playwright',
         "mixin-python",
         "cf_clearance2"
-    ],
+    ]
 )
