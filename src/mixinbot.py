@@ -4,7 +4,6 @@ import time
 import asyncio
 import base64
 import logging
-import httpx
 import yaml
 import traceback
 import websockets
@@ -44,7 +43,6 @@ class MixinBot(MixinWSApi):
 
         self.client_id = config['bot_config']['client_id']
 
-        self.chat_gpt_client = httpx.AsyncClient(proxies={})
         self.tasks: List[SavedQuestion] = []
         self.saved_questions: Dict[str, SavedQuestion] = {}
 

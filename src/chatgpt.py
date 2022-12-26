@@ -8,10 +8,7 @@ import logging
 import shelve
 
 from typing import Optional, Dict, Tuple, Any
-
-# from playwright_stealth import stealth_sync, stealth_async
 from cf_clearance2 import async_stealth
-
 
 from pymixin import log
 logger = log.get_logger(__name__)
