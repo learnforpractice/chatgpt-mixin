@@ -131,8 +131,16 @@ class ChatGPTBot:
     async def heart_beat(self):
         try:
             while True:
-                await self.check_expiration()
-                await self.keep_alive()
+                try:
+                    await self.check_expiration()
+                except Exception as e:
+                    logger.exception(e)
+
+                try:
+                    await self.keep_alive()
+                except Exception as e:
+                    logger.exception(e)
+
                 await asyncio.sleep(1.0)
         except asyncio.CancelledError:
             logger.info("+++++++saving data on exit...")
@@ -143,7 +151,7 @@ class ChatGPTBot:
         self.expired_user.close()
 
     async def check_expiration(self):
-        for user in self.users:
+        for user in self.users.values():
             if user.is_expired():
                 self.handle_expired_user(user)
 

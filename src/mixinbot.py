@@ -233,6 +233,10 @@ class MixinBot(MixinWSApi):
                 except websockets.exceptions.ConnectionClosedError as e:
                     logger.exception(e)
                     self.ws = None
+                #asyncio.exceptions.TimeoutError
+                except Exception as e:
+                    logger.exception(e)
+                    self.ws = None
         except asyncio.CancelledError:
             if self.ws:
                 await self.ws.close()
