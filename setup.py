@@ -16,6 +16,7 @@ setup(
     install_requires=[
         'pyyaml',
         'playwright',
-        "mixin-python"
+        "mixin-python",
+        "cf_clearance2"
     ],
 )
