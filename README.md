@@ -5,15 +5,15 @@
 on unix like platform, install `chatgpt-mixin` with the following command.
 
 ```bash
-python3 -m pip install chatgpt-mixin
+python3 -m pip install -U chatgpt-mixin
 playwright install firefox
 ```
 
 on the Windows platform, use the following command to install `chatgpt-mixin`:
 
 ```bash
-python -m pip install chatgpt-mixin
-playwright install
+python -m pip install -U chatgpt-mixin
+playwright install firefox
 ```
 
 # configuration
