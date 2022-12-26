@@ -68,7 +68,13 @@ class ChatGPTUser:
         self.user_id = user_id
         self.conversation_id = None
         self.parent_message_id = None
-        self.start_time = time.time()
+        self.expiration = time.time() + 15*60.0
+
+    def reset_expiration(self):
+        self.expiration = time.time() + 15*60.0
+
+    def is_expired(self):
+        return self.expiration < time.time()
 
 class ChatGPTBot:
 
@@ -88,6 +94,7 @@ class ChatGPTBot:
         self.parent_message_id = None
 
         self.users: Dict[str, ChatGPTUser] = {}
+        self.expired_user: Dict[str, ChatGPTUser] = {}
 
         self.alive_counter = 0
 
@@ -110,9 +117,10 @@ class ChatGPTBot:
     def clear_users(self):
         self.users = {}
 
-    def delete_user(self, user_id):
+    def handle_expired_user(self, user: ChatGPTUser):
         try:
-            del self.users[user_id]
+            self.expired_user[user.user_id] = user
+            del self.users[user.user_id]
         except KeyError:
             pass
 
@@ -124,8 +132,8 @@ class ChatGPTBot:
             while self.alive_counter < 60*15:
                 self.alive_counter += 10
                 for user in self.users:
-                    if time.time() - user.start_time > 60*15:
-                        self.delete_user(user.user_id)
+                    if user.is_expired():
+                        self.handle_expired_user(user)
                 await asyncio.sleep(10.0)
             self.reset_alive_counter()
             try:
@@ -240,15 +248,22 @@ class ChatGPTBot:
     async def reload(self):
         await self.page.reload()
 
+    def get_user(self, user_id):
+        if user_id in self.users:
+            user = self.users[user_id]
+        elif user_id in self.expired_user:
+            user = self.expired_user[user_id]
+            del self.expired_user[user_id]
+            self.users[user_id] = user
+        else:
+            user = ChatGPTUser(user_id)
+            self.users[user_id] = user
+        user.reset_expiration()
+
     async def send_message(self, user_id, message):
         try:
             async with self.lock:
-                if user_id in self.users:
-                    user = self.users[user_id]
-                else:
-                    user = ChatGPTUser(user_id)
-                    self.users[user_id] = user
-                user.start_time = time.time()
+                user = self.get_user(user_id)
                 self.busy = True
                 async for msg in self._send_message(user, message):
                     yield msg
