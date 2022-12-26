@@ -21,7 +21,7 @@ playwright install
 you can start this bot with the following command:
 
 ```bash
-chatgpt-bot bot-config.yaml
+python3 -m chatgpt_mixin bot-config.yaml
 ```
 
 which bot-config.yaml contains mixin bot configuration and chatgpt accounts as shown below.
