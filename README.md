@@ -23,7 +23,7 @@ playwright install firefox
 First, you need to create a mixin bot from [developers.mixin.one](https://developers.mixin.one/dashboard).
 And then under the `Secret` tab, click `Ed25519 session` to generate an App Session configuration.
 
-Second, you need at least have one chatgpt account, create it at [chat.openai.com](https://chat.openai.com/chat) if you don't have.
+Second, you need at least have one chatgpt account, create it at [chat.openai.com](https://chat.openai.com/chat) if you don't have an account.
 
 After that, you can start this bot with the following command:
 

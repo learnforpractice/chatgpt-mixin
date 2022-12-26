@@ -17,6 +17,6 @@ setup(
         'pyyaml',
         'playwright',
         "mixin-python",
-        "cf_clearance2"
+        "cf_clearance"
     ]
 )

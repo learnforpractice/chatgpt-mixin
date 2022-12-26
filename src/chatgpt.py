@@ -1,4 +1,7 @@
+# -*- coding: utf-8 -*-
+
 import os
+import re
 import json
 import time
 import uuid
@@ -7,12 +10,31 @@ import asyncio
 import logging
 import shelve
 
-from typing import Optional, Dict, Tuple, Any
-from cf_clearance2 import async_stealth
+from typing import Optional, Dict, Tuple, Any, Union
+from playwright.async_api import BrowserContext as AsyncContext
+from playwright.async_api import Page as AsyncPage
+from cf_clearance import StealthConfig
+
 
 from pymixin import log
 logger = log.get_logger(__name__)
 logger.addHandler(log.handler)
+
+async def async_stealth(
+    page_or_context: Union[AsyncContext, AsyncPage],
+    config: StealthConfig = None,
+    pure: bool = True,
+):
+    """teaches asynchronous playwright Page to be stealthy like a ninja!"""
+    for script in (config or StealthConfig()).enabled_scripts:
+        await page_or_context.add_init_script(script)
+    if pure:
+        await page_or_context.route(
+            re.compile(
+                r"(.*\.png(\?.*|$))|(.*\.jpg(\?.*|$))|(.*\.jpeg(\?.*|$))|(.*\.css(\?.*|$))"
+            ),
+            lambda route: route.abort("blockedbyclient"),
+        )
 
 class ChatGPTException(Exception):
     def __init__(self, error):
@@ -300,7 +322,7 @@ class ChatGPTBot:
 
         parser = MessageParser()
 
-        logger.info("++++++message_id: %s, parent_message_id: %s", message_id, user.parent_message_id)
+        logger.info("++++++conversation_id: %s, parent_message_id: %s", user.conversation_id, user.parent_message_id)
         body = {
             "action": "next",
             "messages": [
