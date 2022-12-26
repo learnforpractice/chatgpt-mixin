@@ -20,7 +20,12 @@ playwright install firefox
 
 # configuration
 
-you can start this bot with the following command:
+First, you need to create a mixin bot from [developers.mixin.one](https://developers.mixin.one/dashboard).
+And then under the `Secret` tab, click `Ed25519 session` to generate an App Session configuration.
+
+Second, you need at least have one chatgpt account, create it at [chat.openai.com](https://chat.openai.com/chat) if you don't have.
+
+After that, you can start this bot with the following command:
 
 ```bash
 python3 -m chatgpt_mixin bot-config.yaml
@@ -51,3 +56,4 @@ On the first time you start this bot, automated processes such as auto-filling o
 
 - [chatgpt-api](https://github.com/transitive-bullshit/chatgpt-api)
 - [chatGPT-telegram-bot](https://github.com/altryne/chatGPT-telegram-bot)
+- [ChatGPT](https://github.com/ChatGPT-Hackers/ChatGPT)
