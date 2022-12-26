@@ -1,5 +1,7 @@
 # chatgpt-mixin
 
+![Demo](./images/demo.png)
+
 # Installation
 
 on unix like platform, install `chatgpt-mixin` with the following command.
