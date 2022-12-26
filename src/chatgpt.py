@@ -1,9 +1,11 @@
+import os
 import json
 import time
 import uuid
 import random
 import asyncio
 import logging
+import shelve
 
 from typing import Optional, Dict, Tuple, Any
 
@@ -93,8 +95,10 @@ class ChatGPTBot:
         self.conversation_id = None
         self.parent_message_id = None
 
-        self.users: Dict[str, ChatGPTUser] = {}
-        self.expired_user: Dict[str, ChatGPTUser] = {}
+        if not os.path.exists('.db'):
+            os.mkdir('.db')
+        self.users = shelve.open(f".db/{user}-1")
+        self.expired_user = shelve.open(f".db/{user}-2")
 
         self.alive_counter = 0
 
@@ -114,9 +118,6 @@ class ChatGPTBot:
     def busy(self, value):
         self._busy = value
 
-    def clear_users(self):
-        self.users = {}
-
     def handle_expired_user(self, user: ChatGPTUser):
         try:
             self.expired_user[user.user_id] = user
@@ -127,30 +128,45 @@ class ChatGPTBot:
     def reset_alive_counter(self):
         self.alive_counter = 0
 
+    async def heart_beat(self):
+        try:
+            while True:
+                await self.check_expiration()
+                await self.keep_alive()
+                await asyncio.sleep(1.0)
+        except asyncio.CancelledError:
+            logger.info("+++++++saving data on exit...")
+            self.close()
+
+    def close(self):
+        self.users.close()
+        self.expired_user.close()
+
+    async def check_expiration(self):
+        for user in self.users:
+            if user.is_expired():
+                self.handle_expired_user(user)
+
     async def keep_alive(self):
-        while True:
-            while self.alive_counter < 60*15:
-                self.alive_counter += 10
-                for user in self.users:
-                    if user.is_expired():
-                        self.handle_expired_user(user)
-                await asyncio.sleep(10.0)
-            self.reset_alive_counter()
-            try:
-                logger.info("keep alive")
-                async with self.lock:
-                    await self.page.goto("https://chat.openai.com/chat", timeout=60*1000)
-                if self.standby:
-                    try:
-                        msg = auto_send_messages[random.randint(0, len(auto_send_messages) - 1)]
-                        async for msg in self.send_message('main', msg):
-                            logger.info(msg)
-                            break
-                        self.standby = False
-                    except Exception as e:
-                        logger.exception(e)
-            except Exception as e:
-                logger.exception(e)
+        self.alive_counter += 1
+        if self.alive_counter < 60*15:
+            return
+        self.reset_alive_counter()
+        try:
+            logger.info("keep alive")
+            async with self.lock:
+                await self.page.goto("https://chat.openai.com/chat", timeout=60*1000)
+            if self.standby:
+                try:
+                    msg = auto_send_messages[random.randint(0, len(auto_send_messages) - 1)]
+                    async for msg in self.send_message('main', msg):
+                        logger.info(msg)
+                        break
+                    self.standby = False
+                except Exception as e:
+                    logger.exception(e)
+        except Exception as e:
+            logger.exception(e)
 
     async def on_response(self, response):
         url = response.url
@@ -165,7 +181,7 @@ class ChatGPTBot:
                     logger.info("++++=access token: %s", self.access_token)
 
     async def init(self):
-        asyncio.create_task(self.keep_alive())
+        asyncio.create_task(self.heart_beat())
 
         BROWSER = await self.PLAY.firefox.launch_persistent_context(
             user_data_dir=f"/tmp/playwright/firefox-{self.user}",
@@ -259,6 +275,7 @@ class ChatGPTBot:
             user = ChatGPTUser(user_id)
             self.users[user_id] = user
         user.reset_expiration()
+        return user
 
     async def send_message(self, user_id, message):
         try:
@@ -341,11 +358,9 @@ class ChatGPTBot:
             if detail:
                 if 'Rate limit reached' in detail['detail']['message']:
                     self.standby = True
-                    self.clear_users()
                     raise ChatGPTException(ret)
             if 'Too many requests' in ret:
                 self.standby = True
-                self.clear_users()
                 raise TooManyRequestsException(ret)
             raise ChatGPTException(ret)
         yield "[BEGIN]\n"
@@ -385,6 +400,7 @@ class ChatGPTBot:
             logger.info("++++++last message: %s", message)
             yield message
         self.reset_alive_counter()
+        self.users[user.user_id] = user
         return
 
 async def run():
