@@ -14,7 +14,7 @@ setup(
     package_data={},
     setup_requires=['wheel'],
     install_requires=[
-        'toml>=0.10.2'
+        'pyyaml',
         'playwright',
         "mixin-python"
     ],
