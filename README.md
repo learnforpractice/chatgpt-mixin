@@ -47,3 +47,7 @@ If you are running a bot in a server, you need to install `Xvfb` on the server, 
 
 On the first time you start this bot, automated processes such as auto-filling of account names and passwords will be carried out, but you will still need to manually solve CAPTCHAs during the login process.
 
+# Acknowledgements
+
+- [chatgpt-api](https://github.com/transitive-bullshit/chatgpt-api)
+- [chatGPT-telegram-bot](https://github.com/altryne/chatGPT-telegram-bot)
