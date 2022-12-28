@@ -4,7 +4,7 @@
 
 # Installation
 
-on unix like platform, install `chatgpt-mixin` with the following command.
+on unix like platform, install `chatgpt-mixin` with the following command:
 
 ```bash
 python3 -m pip install -U chatgpt-mixin

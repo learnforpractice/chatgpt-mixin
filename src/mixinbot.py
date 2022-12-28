@@ -36,6 +36,92 @@ class SavedQuestion:
     user_id: str
     data: str
 
+sayhi = {
+    'hi': '''
+Hello, this is an intelligent question and answer robot. Is there anything I can help you with?
+
+here is a list of things that I As an AI language model, can do, along with a brief explanation of each:
+
+- Answer questions: I can provide information and assistance on a wide range of topics, such as science, history, technology, and general knowledge.
+
+- Generate text: I can create original text on a variety of topics, including stories, news articles, and descriptions.
+
+- Translate text: I can translate text from one language to another using machine translation technology.
+
+- Summarize text: I can provide a concise overview of the main points of a long piece of text.
+
+- Provide definitions: I can provide definitions and explanations of words, phrases, and concepts.
+
+- Generate responses: I can generate appropriate and coherent responses to prompts, such as questions or statements.
+
+- Process and analyze data: I can process and analyze large amounts of data in order to extract useful insights and information.
+
+- Identify patterns and trends in data: I can identify patterns and trends in data sets, which can be useful for a variety of applications, such as predicting future outcomes or identifying relationships between variables.
+
+- Recognize and classify images: I can recognize and classify objects and features in images using machine learning algorithms.
+
+- Provide recommendations: I can make recommendations based on data and analysis, such as suggesting products or courses of action.
+
+- Perform tasks based on instructions: I can perform tasks or actions based on specific instructions, such as creating a list or completing a calculation.
+    ''',
+
+    '你好': '''
+你好，这是一个智能问答机器人，请问有什么可以帮到你的吗？
+
+以下是我可以做的事情：
+
+- 回答问题：我可以提供有关科学、历史、技术和常识等广泛主题的信息和帮助。
+
+- 生成文本：我可以创建有关各种主题的原创文本，包括故事、新闻文章和描述。
+
+- 翻译文本：我可以使用机器翻译技术将文本从一种语言翻译成另一种语言。
+
+- 摘要文本：我可以为长篇文章的主要要点提供简明概述。
+
+- 提供定义：我可以为单词、短语和概念提供定义和解释。
+
+- 生成响应：我可以以连贯和适当的方式生成对询问或陈述等提示的响应。
+
+- 处理和分析数据：我可以处理和分析大量数据，以提取有用的信息和见解。
+
+- 识别数据中的模式和趋势：我可以识别数据集中的模式和趋势，这对于预测未来结果或识别变量之间关系等应用是有用的。
+
+- 识别和分类图像：我可以使用机器学习算法识别和分类图像中的对象和特征。例如，我可以识别图像中的人、动物、植物等，并将它们分类到不同的类别中。
+
+- 提供建议：我可以根据数据和分析提供建议，如建议产品或行动方案。
+
+- 根据指令执行任务：我可以根据特定的指令执行任务或动作，例如创建清单或完成计算。
+    ''',
+
+    'こんにちは': '''
+こんにちは、こちらはインテリジェントな質問応答ロボットです。何かお手伝いできることはありますか？
+
+はい、これは私が人工知能言語モデルとしてできることのリストです。簡単な説明も付けます：
+
+- 質問に答える：科学、歴史、技術、一般常識など、幅広いテーマについての情報やアシスタンスを提供できます。
+
+- テキストを生成する：話、ニュース記事、説明など、様々なテーマについてのオリジナルテキストを作成できます。
+
+- テキストを翻訳する：機械翻訳技術を使用して、1つの言語から別の言語へテキストを翻訳できます。
+
+- テキストを要約する：長い文章の主要ポイントを簡潔に概要できます。
+
+- 定義を提供する：単語、フレーズ、概念などの定義と解説を提供できます。
+
+- レスポンスを生成する：質問や文章などのプロンプトに対する、コヒーレントで適切なレスポンスを生成できます。
+
+- データを処理して分析する：大量のデータを処理して、有用な情報や見解を抽出できます。
+
+- データ中のパターンやトレンドを特定する：データセット中のパターンやトレンドを特定できます。これは、将来のアウトカムを予測したり、変数間の関係を特定するような様々なアプリケーションに役立ちます。
+
+- 画像を認識して分類する：機械学習アルゴリズムを使用して、画像中の物体や特徴を認識して、異なるカテゴリーに分類できます。例えば、画像中の人や動物、植物などを認識し、それらを異なるカテゴリーに分類できます。
+
+- アドバイスを提供する：データや分析に基づいて、製品を提案するようなアドバイスを提供できます。
+
+- 指令に基づいてタスクを実行する：清单を作成するような特定の指令に基づいて、タスクやアクションを実行できます。
+    '''
+}
+
 class MixinBot(MixinWSApi):
     def __init__(self, config_file):
         f = open(config_file)
@@ -47,8 +133,6 @@ class MixinBot(MixinWSApi):
 
         self.tasks: List[SavedQuestion] = []
         self.saved_questions: Dict[str, SavedQuestion] = {}
-
-        asyncio.create_task(self.handle_questions())
 
         self.developer_conversation_id = None
         self.developer_user_id = None
@@ -70,6 +154,7 @@ class MixinBot(MixinWSApi):
         self._paused = value
 
     async def init(self):
+        asyncio.create_task(self.handle_questions())
         PLAY = await async_playwright().start()
         for account in self.chatgpt_accounts:
             user = account['user']
@@ -210,15 +295,12 @@ class MixinBot(MixinWSApi):
         data = data.decode()
         logger.info(data)
 
-        if data == 'hi':
-            await self.sendUserText(msg.conversation_id, msg.user_id, "Hello, this is an intelligent question and answer robot. Is there anything I can help you with?")
+        try:
+            reply = sayhi[data]
+            await self.sendUserText(msg.conversation_id, msg.user_id, reply)
             return
-        elif data == '你好':
-            await self.sendUserText(msg.conversation_id, msg.user_id, "你好，这是一个智能问答机器人，请问有什么可以帮到你的吗？")
-            return
-        elif data == 'こんにちは':
-            await self.sendUserText(msg.conversation_id, msg.user_id, "こんにちは、こちらはインテリジェントな質問応答ロボットです。何かお手伝いできることはありますか？")
-            return
+        except KeyError:
+            pass
 
         if utils.unique_conversation_id(msg.user_id, self.client_id) == msg.conversation_id:
             asyncio.create_task(self.handle_message(msg.conversation_id, msg.user_id, data))

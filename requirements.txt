@@ -1,5 +1,4 @@
 playwright
-toml>=0.10.2
-playwright
+pyyaml
 mixin-python
-cf_clearance2
+cf_clearance
