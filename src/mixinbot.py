@@ -171,11 +171,8 @@ class MixinBot(MixinWSApi):
             bots.append(bot)
 
         for bot in bots:
-            try:
-                user = bot.users[user_id]
+            if user_id in bot.users:
                 return bot
-            except KeyError:
-                pass
 
         bot_index = 0
         user_counts = [len(bot.users) for bot in bots]

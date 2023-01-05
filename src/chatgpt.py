@@ -138,11 +138,8 @@ class ChatGPTBot:
         self._busy = value
 
     def handle_expired_user(self, user: ChatGPTUser):
-        try:
-            self.expired_user[user.user_id] = user
-            del self.users[user.user_id]
-        except KeyError:
-            pass
+        self.expired_user[user.user_id] = user
+        self.users.pop(user.user_id, None)
 
     def reset_alive_counter(self):
         self.alive_counter = 0
@@ -176,22 +173,27 @@ class ChatGPTBot:
 
     async def keep_alive(self):
         self.alive_counter += 1
-        if self.alive_counter < 60*15:
+        if self.alive_counter < 15 * 60:
             return
         self.reset_alive_counter()
         try:
             logger.info("keep alive")
-            async with self.lock:
-                await self.page.goto("https://chat.openai.com/chat", timeout=60*1000)
+            kv = '{"event":"session","data":{"trigger":"getSession"},"timestamp": %s}' % (round(time.time()), )
+            script = '''
+            async ({kv}) => {
+                window.localStorage.setItem('nextauth.message', kv)
+            }
+            '''
+            ret = await self.page.evaluate(script, {'kv': kv})
+            # window.localStorage.setItem('nextauth.message', '{"event":"session","data":{"trigger":"getSession"},"timestamp":'1672014120'}')
+            # async with self.lock:
+            #     await self.page.goto("https://chat.openai.com/chat", timeout=60*1000)
             if self.standby:
-                try:
-                    msg = auto_send_messages[random.randint(0, len(auto_send_messages) - 1)]
-                    async for msg in self.send_message('main', msg):
-                        logger.info(msg)
-                        break
-                    self.standby = False
-                except Exception as e:
-                    logger.exception(e)
+                msg = auto_send_messages[random.randint(0, len(auto_send_messages) - 1)]
+                async for msg in self.send_message('main', msg):
+                    logger.info(msg)
+                    break
+                self.standby = False
         except Exception as e:
             logger.exception(e)
 
@@ -224,16 +226,21 @@ class ChatGPTBot:
             await asyncio.sleep(2.0)
             await self.page.goto("https://chat.openai.com/chat", timeout=60*1000)
 
+            buttons = None
             for _ in range(15):
+                await asyncio.sleep(1.0)
                 if self.access_token:
                     return
-                await asyncio.sleep(1.0)
+                buttons = await self.page.query_selector_all("div[class*='btn flex justify-center gap-2 btn-primary']")
+                if buttons:                
+                    break
 
-            logger.info("++++get_access_token")
-            if await self.get_access_token():
-                return
+            if not buttons:
+                logger.info("++++get_access_token")
+                if await self.get_access_token():
+                    return
 
-            await self.page.locator("button", has_text="Log in").click(timeout=15*1000)
+            await self.page.locator("button", has_text="Log in").click(timeout=1*1000)
 
             username = self.page.locator('input[name="username"]')
             await username.fill(self.user)
@@ -244,12 +251,12 @@ class ChatGPTBot:
             await password.press("Enter")
             
             # On first login
-            next_button = self.page.locator("button", has_text="Next")
-            await next_button.click()
-            next_button = self.page.locator("button", has_text="Next")
-            await next_button.click()
-            next_button = self.page.locator("button", has_text="Done")
-            await next_button.click()
+            # next_button = self.page.locator("button", has_text="Next")
+            # await next_button.click()
+            # next_button = self.page.locator("button", has_text="Next")
+            # await next_button.click()
+            # next_button = self.page.locator("button", has_text="Done")
+            # await next_button.click()
         except Exception as e:
             logger.exception(e)
 
