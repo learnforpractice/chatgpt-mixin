@@ -1,3 +1,6 @@
+[![PyPi](https://img.shields.io/pypi/v/chatgpt-mixin.svg)](https://pypi.org/project/chatgpt-mixin)
+[![PyPi](https://img.shields.io/pypi/dm/chatgpt-mixin.svg)](https://pypi.org/project/chatgpt-mixin)
+
 # chatgpt-mixin
 
 ![Demo](./images/demo.png)
