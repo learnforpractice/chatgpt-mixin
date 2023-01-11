@@ -232,7 +232,7 @@ class ChatGPTBot:
                 if self.access_token:
                     return
                 buttons = await self.page.query_selector_all("div[class*='btn flex justify-center gap-2 btn-primary']")
-                if buttons:                
+                if buttons:
                     break
 
             if not buttons:
@@ -301,15 +301,22 @@ class ChatGPTBot:
     def get_user(self, user_id):
         if user_id in self.users:
             user = self.users[user_id]
+            user.reset_expiration()
         elif user_id in self.expired_user:
             user = self.expired_user[user_id]
+            user.reset_expiration()
             del self.expired_user[user_id]
             self.users[user_id] = user
         else:
             user = ChatGPTUser(user_id)
-            self.users[user_id] = user
-        user.reset_expiration()
+            self.users[user_id] = user        
         return user
+
+    def reset_conversation_id(self, user_id):
+        assert user_id in self.users
+        user = self.users[user_id]
+        user.conversation_id = None
+        self.users[user_id] = user
 
     async def send_message(self, user_id, message):
         try:
@@ -382,18 +389,12 @@ class ChatGPTBot:
         logger.info("+++++++++ret: %s", ret)
         if not ret == "OK":
             await self.reload()
-            detail = None
-            try:
-                detail = json.loads(ret)
-            except Exception as e:
-#                logger.exception(e)
-                pass
 
-            if detail:
-                if 'Rate limit reached' in detail['detail']['message']:
-                    self.standby = True
-                    raise ChatGPTException(ret)
-            if 'Too many requests' in ret:
+            if 'Conversation not found' in ret:
+                self.reset_conversation_id(user.user_id)
+            elif 'Rate limit reached' in ret:
+                self.standby = True
+            elif 'Too many requests' in ret:
                 self.standby = True
                 raise TooManyRequestsException(ret)
             raise ChatGPTException(ret)
@@ -415,6 +416,9 @@ class ChatGPTBot:
             for msg in messages:
                 if not msg:
                     continue
+                if msg.find(b'\r\n'):
+                    # ignore data like b'event: ping\r\ndata: 2023-01-11 03:20:19.692082\r\n\r\n
+                    msg = msg.split(b'\r\n')[-1]
                 msg = msg[len(b'data: '):]
                 if b'[DONE]' in msg:
                     done = True
