@@ -188,14 +188,14 @@ class ChatGPTBot:
             # window.localStorage.setItem('nextauth.message', '{"event":"session","data":{"trigger":"getSession"},"timestamp":'1672014120'}')
             # async with self.lock:
             #     await self.page.goto("https://chat.openai.com/chat", timeout=60*1000)
-            if self.standby:
-                msg = auto_send_messages[random.randint(0, len(auto_send_messages) - 1)]
-                async for msg in self.send_message('main', msg):
-                    logger.info(msg)
-                    break
-                self.standby = False
+            msg = auto_send_messages[random.randint(0, len(auto_send_messages) - 1)]
+            async for msg in self.send_message('main', msg):
+                logger.info(msg)
+                break
+            self.standby = False
         except Exception as e:
             logger.exception(e)
+            self.reload()
 
     async def on_response(self, response):
         url = response.url
