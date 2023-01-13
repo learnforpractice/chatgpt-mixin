@@ -19,7 +19,7 @@ jobs:
       run:
         shell: bash
     env:
-      VERSION: 0.1.2
+      VERSION: 0.1.3
     strategy:
       matrix:
         python-version: [3.9]
