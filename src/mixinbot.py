@@ -10,6 +10,8 @@ import yaml
 import traceback
 import websockets
 import platform
+import httpx
+from datetime import datetime
 from typing import Optional, List, Dict, Any, Union, Set
 
 from pymixin.mixin_ws_api import MixinWSApi, MessageView
@@ -136,6 +138,7 @@ class MixinBot(MixinWSApi):
 
         self.developer_conversation_id = None
         self.developer_user_id = None
+        self.web_client = httpx.AsyncClient()
 
         if 'developer_conversation_id' in config:
             self.developer_conversation_id = config['developer_conversation_id']
@@ -189,6 +192,9 @@ class MixinBot(MixinWSApi):
             self.save_question(conversation_id, user_id, message)
             #queue message
             return False
+        if message.startswith('/web'):
+            message = message.replace('/web', '', 1)
+            message = await self.get_web_result(message)
         try:
             async for msg in bot.send_message(user_id, message):
                 await self.sendUserText(conversation_id, user_id, msg)
@@ -206,6 +212,11 @@ class MixinBot(MixinWSApi):
             self.save_question(conversation_id, user_id, message)
             #TODO: queue message
             return False
+
+        if message.startswith('/web'):
+            message = message.replace('/web', '', 1)
+            message = await self.get_web_result(message)
+
         msgs: List[str] = []
         try:
             async for msg in bot.send_message(user_id, message):
@@ -236,13 +247,35 @@ class MixinBot(MixinWSApi):
     def save_question(self, conversation_id, user_id, data):
         self.saved_questions[user_id] = SavedQuestion(conversation_id, user_id, data)
 
-    async def handle_message(self, conversation_id, user_id, data):
+    async def handle_message(self, conversation_id, user_id, message):
         try:
-            await self.send_message_to_chat_gpt(conversation_id, user_id, data)
+            await self.send_message_to_chat_gpt(conversation_id, user_id, message)
         except Exception as e:
             logger.exception(e)
             if self.developer_user_id:
                 await self.sendUserText(self.developer_conversation_id, self.developer_user_id, f"exception occur at:{time.time()}: {traceback.format_exc()}")
+
+    async def get_web_result(self, prompt: str):
+        date = datetime.now()
+        formatted_date = date.strftime('%m/%d/%Y')
+
+        url = f'https://ddg-webapp-aagd.vercel.app/search?max_results=3&q="{prompt}"'
+        r = await self.web_client.get(url)
+        results: List[Any] = r.json()
+        if not results:
+            return prompt
+        counter = 0
+        querys = []
+        querys.append("Web search results:\n\n")
+        for a in results:
+            counter += 1
+            body = a['body']
+            href = a['href']
+            querys.append(f'[{counter}] "{body}"')
+            querys.append(f"Source: {href}")
+        querys.append(f"\nCurrent date: {formatted_date}")
+        querys.append(f"\nInstructions: Using the provided web search results, write a comprehensive reply to the given prompt. Make sure to cite results using [[number](URL)] notation after the reference. If the provided search results refer to multiple subjects with the same name, write separate answers for each subject.\nPrompt: {prompt}")
+        return "".join(querys)
 
     async def handle_group_message(self, conversation_id, user_id, data):
         await self.send_message_to_chat_gpt2(conversation_id, user_id, data)
@@ -314,6 +347,8 @@ class MixinBot(MixinWSApi):
         except asyncio.CancelledError:
             if self.ws:
                 await self.ws.close()
+            if self.web_client:
+                await self.web_client.aclose()
             logger.info("mixin websocket was cancelled!")
 
     async def close(self):
