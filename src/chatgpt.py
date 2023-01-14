@@ -195,7 +195,7 @@ class ChatGPTBot:
             self.standby = False
         except Exception as e:
             logger.exception(e)
-            self.reload()
+            await self.reload()
 
     async def on_response(self, response):
         url = response.url
