@@ -226,19 +226,19 @@ class ChatGPTBot:
             await asyncio.sleep(2.0)
             await self.page.goto("https://chat.openai.com/chat", timeout=60*1000)
 
-            buttons = None
-            for _ in range(15):
-                await asyncio.sleep(1.0)
+            while True:
                 if self.access_token:
                     return
-                buttons = await self.page.query_selector_all("div[class*='btn flex justify-center gap-2 btn-primary']")
+                buttons = await self.page.query_selector_all("button[class*='btn flex justify-center gap-2 btn-primary']")
                 if buttons:
+                    logger.info(buttons)
                     break
-
-            if not buttons:
-                logger.info("++++get_access_token")
-                if await self.get_access_token():
-                    return
+                if await self.page.query_selector("textarea"):
+                    logger.info("++++get_access_token")
+                    if await self.get_access_token():
+                        return
+                await asyncio.sleep(3.0)
+                logger.info("waiting for page...")
 
             await self.page.locator("button", has_text="Log in").click(timeout=1*1000)
 
