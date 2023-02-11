@@ -194,7 +194,10 @@ class MixinBot(MixinWSApi):
             return False
         if message.startswith('/web'):
             message = message.replace('/web', '', 1)
+            old_message = message
             message = await self.get_web_result(message)
+            if not old_message == message:
+                await self.sendUserText(conversation_id, user_id, message)
         try:
             async for msg in bot.send_message(user_id, message):
                 await self.sendUserText(conversation_id, user_id, msg)
@@ -215,7 +218,10 @@ class MixinBot(MixinWSApi):
 
         if message.startswith('/web'):
             message = message.replace('/web', '', 1)
+            old_message = message
             message = await self.get_web_result(message)
+            if not old_message == message:
+                await self.sendUserText(conversation_id, user_id, message)
 
         msgs: List[str] = []
         try:
@@ -255,13 +261,18 @@ class MixinBot(MixinWSApi):
             if self.developer_user_id:
                 await self.sendUserText(self.developer_conversation_id, self.developer_user_id, f"exception occur at:{time.time()}: {traceback.format_exc()}")
 
-    async def get_web_result(self, prompt: str):
+    async def get_web_result(self, message: str):
         date = datetime.now()
         formatted_date = date.strftime('%m/%d/%Y')
-
-        url = f'https://ddg-webapp-aagd.vercel.app/search?max_results=3&q="{prompt}"'
-        r = await self.web_client.get(url)
+        prompt = message
+        search = message
+        if message.count('/p ') == 1:
+            search, prompt = message.split('/p ')
+        logger.info("+++++%s %s", search, prompt)
+        url = f'https://ddg-webapp-aagd.vercel.app/search?max_results=3&q="{search}"'
+        r = httpx.get(url)
         results: List[Any] = r.json()
+        logger.info("++++++results: %s", results)
         if not results:
             return prompt
         counter = 0
@@ -275,8 +286,7 @@ class MixinBot(MixinWSApi):
             querys.append(f"Source: {href}")
         querys.append(f"\nCurrent date: {formatted_date}")
         querys.append(f"\nInstructions: Using the provided web search results, write a comprehensive reply to the given prompt. Make sure to cite results using [[number](URL)] notation after the reference. If the provided search results refer to multiple subjects with the same name, write separate answers for each subject.\nPrompt: {prompt}")
-        return "".join(querys)
-
+        return "\n".join(querys)
     async def handle_group_message(self, conversation_id, user_id, data):
         await self.send_message_to_chat_gpt2(conversation_id, user_id, data)
 
