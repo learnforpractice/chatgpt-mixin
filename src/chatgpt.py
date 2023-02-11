@@ -385,11 +385,17 @@ class ChatGPTBot:
             return await res.text();
         }
     '''
-        ret = await self.page.evaluate(script, { 'url': url, 'body': json.dumps(body), "accessToken": self.access_token })
+        ret = None
+        try:
+            ret = await self.page.evaluate(script, { 'url': url, 'body': json.dumps(body), "accessToken": self.access_token })
+        except Exception as e:
+            logger.exception(e)
+            await self.reload()
+            raise ChatGPTException(e)
         logger.info("+++++++++ret: %s", ret)
         if not ret == "OK":
             await self.reload()
-
+            try_again = 'Hmm...something seems to have gone wrong. Maybe try me again in a little bit.'
             if 'Conversation not found' in ret:
                 self.reset_conversation_id(user.user_id)
             elif 'Rate limit reached' in ret:
@@ -402,13 +408,19 @@ class ChatGPTBot:
         done = False
         buffer = b''
         while not done:
-            ret = await self.page.evaluate("""async () => {
-                const { done, value } = await window.reader.read();
-                // console.log(done, value);
-                const hexValue = Array.from(value).map((i) => ('0' + i.toString(16)).slice(-2)).join('');
-                return hexValue;
-            }
-            """, {})
+            try:
+                ret = await self.page.evaluate("""async () => {
+                    const { done, value } = await window.reader.read();
+                    // console.log(done, value);
+                    const hexValue = Array.from(value).map((i) => ('0' + i.toString(16)).slice(-2)).join('');
+                    return hexValue;
+                }
+                """, {})
+            except Exception as e:
+                logger.exception(e)
+                await self.reload()
+                raise ChatGPTException(e)
+
             buffer += bytes.fromhex(ret)
             messages = buffer.split(b'\n\n')
             buffer = messages[-1]
