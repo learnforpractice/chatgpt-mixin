@@ -5,7 +5,6 @@ import sys
 import time
 import asyncio
 import base64
-import logging
 import yaml
 import traceback
 import websockets
@@ -19,9 +18,6 @@ from pymixin import utils
 from pymixin import log
 
 from dataclasses import dataclass
-from playwright.async_api import async_playwright
-
-from .chatgpt import ChatGPTBot
 
 logger = log.get_logger(__name__)
 logger.addHandler(log.handler)
@@ -130,6 +126,7 @@ class MixinBot(MixinWSApi):
         config = yaml.safe_load(f)
         super().__init__(config['bot_config'], on_message=self.on_message)
         self.chatgpt_accounts = config['accounts']
+        self.openai_api_keys = config['openai_api_keys']
 
         self.client_id = config['bot_config']['client_id']
 
@@ -143,9 +140,9 @@ class MixinBot(MixinWSApi):
         if 'developer_conversation_id' in config:
             self.developer_conversation_id = config['developer_conversation_id']
             self.developer_user_id = config['developer_user_id']
-
-        self.bots: List[ChatGPTBot] = []
-        self.standby_bots: List[ChatGPTBot] = []
+        # openai_api_key
+        self.bots = []
+        self.standby_bots = []
         self._paused = False
 
     @property
@@ -158,13 +155,26 @@ class MixinBot(MixinWSApi):
 
     async def init(self):
         asyncio.create_task(self.handle_questions())
-        PLAY = await async_playwright().start()
-        for account in self.chatgpt_accounts:
-            user = account['user']
-            psw = account['psw']
-            bot = ChatGPTBot(PLAY, user, psw)
-            await bot.init()
-            self.bots.append(bot)
+
+        if self.chatgpt_accounts:
+            from playwright.async_api import async_playwright
+            from .chatgpt_browser import ChatGPTBot
+            PLAY = await async_playwright().start()
+            for account in self.chatgpt_accounts:
+                user = account['user']
+                psw = account['psw']
+                bot = ChatGPTBot(PLAY, user, psw)
+                await bot.init()
+                self.bots.append(bot)
+
+        if self.openai_api_keys:
+            from .chatgpt_openai import ChatGPTBot
+            for key in self.openai_api_keys:
+                bot = ChatGPTBot(key)
+                await bot.init()
+                self.bots.append(bot)
+        
+        assert self.bots
 
     def choose_bot(self, user_id):
         bots = []
@@ -377,6 +387,7 @@ async def start(config_file):
     bot = MixinBot(config_file)
     await bot.init()
     asyncio.create_task(bot.run())
+    print('started')
     while not bot.paused:
         await asyncio.sleep(1.0)
 

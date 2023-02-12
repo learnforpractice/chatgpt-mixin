@@ -13,10 +13,4 @@ setup(
     package_dir={'chatgpt_mixin': 'src'},
     package_data={},
     setup_requires=['wheel'],
-    install_requires=[
-        'pyyaml',
-        'playwright',
-        "mixin-python",
-        "cf_clearance"
-    ]
 )

@@ -43,12 +43,13 @@ bot_config:
   session_id: ""
   pin_token: ""
   private_key: ""
+openai_api_keys: []
 accounts:
  - user: ""
    psw: ""
 ```
 
-`bot_config` section specify mixin bot configure. `accounts` section specify chatgpt test accounts. `user` field can not be empty, but you can leave `psw` to empty. If it is left empty, the user will need to manually enter the password upon login. Multiple accounts can be specified in the accounts section to improve ChatGPT responses.
+`bot_config` section specify mixin bot configure. `openai_api_keys` section specify openai api keys. `accounts` section specify chatgpt test accounts. `user` field can not be empty, but you can leave `psw` to empty. If it is left empty, the user will need to manually enter the password upon login. Multiple accounts can be specified in the accounts section to improve ChatGPT responses.
 
 If you are running a bot in a server, you need to install `Xvfb` on the server, and use `VNC` at the client side to connect to `Xvfb`. For more information, refer to [Remote_control_over_SSH](https://en.wikipedia.org/wiki/Xvfb#Remote_control_over_SSH).
 
