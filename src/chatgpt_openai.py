@@ -85,7 +85,7 @@ class ChatGPTBot:
 
         old_conversations: List[str] = []
         parent_messages: list[Message] = []
-        total_length = 0
+        total_length = len(prompt_induct)
         if parent_message_id:
             for _ in range(10):
                 parent_message = self.get_parent_messsage(conversation_id, parent_message_id)
@@ -99,9 +99,9 @@ class ChatGPTBot:
                 conversation = f"User:\n\n{parent_message.message}{stop}"
                 conversation += f"{assistant_label}:\n\n{parent_message.completion}{stop}"
                 total_length += len(conversation)
-                old_conversations.insert(0, conversation)
                 if total_length > 2048:
                     break
+                old_conversations.insert(0, conversation)
         return prompt_induct + \
             ''.join(old_conversations) + \
             f"User:\n\n{message}{stop}" + \
@@ -127,6 +127,7 @@ class ChatGPTBot:
         start_time = time.time()
         try:
             response = await openai.Completion.acreate(
+                user=conversation_id,
                 model=self.model_id,
                 prompt=prompt,
                 max_tokens=1024,
