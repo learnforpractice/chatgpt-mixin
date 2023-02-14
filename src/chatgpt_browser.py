@@ -191,7 +191,6 @@ class ChatGPTBot:
             msg = auto_send_messages[random.randint(0, len(auto_send_messages) - 1)]
             async for msg in self.send_message('main', msg):
                 logger.info(msg)
-                break
             self.standby = False
         except Exception as e:
             logger.exception(e)
