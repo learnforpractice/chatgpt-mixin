@@ -5,6 +5,8 @@
 
 ![Demo](./images/demo.png)
 
+Demo bot: 7000101691
+
 # Installation
 
 on unix like platform, install `chatgpt-mixin` with the following command:
@@ -19,6 +21,12 @@ on the Windows platform, use the following command to install `chatgpt-mixin`:
 ```bash
 python -m pip install -U chatgpt-mixin
 playwright install firefox
+```
+
+Install chatgpt-mixin with the support of login with browser:
+
+```bash
+python3 -m pip install -U chatgpt-mixin[browser]
 ```
 
 # configuration

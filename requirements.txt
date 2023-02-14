@@ -2,3 +2,4 @@ playwright
 pyyaml
 mixin-python
 cf_clearance
+openai
