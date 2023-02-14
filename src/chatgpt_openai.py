@@ -80,7 +80,7 @@ class ChatGPTBot:
         assistant_label = "ChatGPT"
         # stop = "<|im_end|>\n\n"
         stop = "\n\n"
-        prompt_induct = f"You are {assistant_label}, a large language model trained by OpenAI. You answer as concisely as possible for each response (e.g. don’t be verbose). It is very important that you answer as concisely as possible, so please remember this. If you are generating a list, do not have too many items. Keep the number of items short. Remember, provide a response to the user's question using the same language present in their message\n"
+        prompt_induct = f"You are {assistant_label}, a large language model trained by OpenAI. You answer as concisely as possible for each response (e.g. don’t be verbose). It is very important that you answer as concisely as possible, so please remember this. If you are generating a list, do not have too many items. Keep the number of items short. Remember, provide a response to the user's question using the same language present in his/her latest prompt\n"
         prompt_induct += f"Current date: {formatted_time}\n\n"
 
         old_conversations: List[str] = []
