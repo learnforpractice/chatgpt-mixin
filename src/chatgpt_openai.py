@@ -7,6 +7,7 @@ from typing import List, Dict, Tuple, Optional
 import shelve
 from datetime import datetime
 from dataclasses import dataclass
+import collections
 import openai
 from pymixin import log
 
@@ -18,6 +19,43 @@ class Message:
     message: str
     parent_message_id: Optional[str]
     completion: str
+
+# code borrow from https://github.com/RazerM/ratelimiter
+class ChatGPTRateLimiter(object):
+    def __init__(self, max_calls, period=1.0):
+            """Initialize a RateLimiter object which enforces as much as max_calls
+            operations on period (eventually floating) number of seconds.
+            """
+            if period <= 0:
+                raise ValueError('Rate limiting period should be > 0')
+            if max_calls <= 0:
+                raise ValueError('Rate limiting number of calls should be > 0')
+
+            # We're using a deque to store the last execution timestamps, not for
+            # its maxlen attribute, but to allow constant time front removal.
+            self.calls = collections.deque()
+
+            self.period = period
+            self.max_calls = max_calls
+
+    def check(self) -> bool:
+        #logger.info("++++++++calls: %s, max_calls: %s", len(self.calls), self.max_calls)
+        if len(self.calls) < self.max_calls:
+            self.calls.append(time.time())
+            return False
+
+        #logger.info("++++++self.period - self._timespan: %s", self.period - self._timespan)
+        if time.time() - self.calls[0] < self.period - self._timespan:
+            return True
+
+        self.calls.append(time.time())
+        while self._timespan >= self.period:
+            self.calls.popleft()
+        return False
+
+    @property
+    def _timespan(self):
+        return self.calls[-1] - self.calls[0]
 
 class ChatGPTBot:
     def __init__(self, api_key: str, model_id: str = 'text-davinci-003'):
@@ -36,6 +74,7 @@ class ChatGPTBot:
         self.users: Dict[str, bool] = {}
 
         self.lock = asyncio.Lock()
+        self.limiters: Dict[str, ChatGPTRateLimiter] = {}
 
     async def init(self):
         pass
@@ -107,7 +146,18 @@ class ChatGPTBot:
             f"User:\n\n{message}{stop}" + \
             f"{assistant_label}:\n"
 
+    def check_rate_limit(self, user_id: str) -> bool:
+        try:
+            return self.limiters[user_id].check()
+        except KeyError:
+            self.limiters[user_id] = ChatGPTRateLimiter(5, 60)
+            return False
+
     async def send_message(self, conversation_id: str, message: str):
+        if self.check_rate_limit(conversation_id):
+            yield '[BEGIN]'
+            yield 'Error: too many requests!'
+            return
         async with self.lock:
             async for msg in self._send_message(conversation_id, message):
                 yield msg
@@ -122,12 +172,12 @@ class ChatGPTBot:
             yield 'Error: query too large!'
             return
 
-        logger.info('+++prompt:%s', prompt)
+        # logger.info('+++prompt:%s', prompt)
 
         start_time = time.time()
         try:
             response = await openai.Completion.acreate(
-                user=conversation_id,
+                # user=conversation_id,
                 model=self.model_id,
                 prompt=prompt,
                 max_tokens=1024,
