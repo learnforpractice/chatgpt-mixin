@@ -118,7 +118,7 @@ class ChatGPTBot:
             logger.exception(e)
             yield 'Sorry, I am not available now.'
             return
-        yield '[BEGIN]'
+        yield '[BEGIN]\n'
         reply = response['choices'][0]['message']['content']
         logger.info('++++response: %s', reply)
         self.add_messsage(conversation_id, message, reply)
