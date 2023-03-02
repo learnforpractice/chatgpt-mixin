@@ -36,7 +36,7 @@ class SavedQuestion:
 
 sayhi = {
     'hi': '''
-Hello, this is an intelligent question and answer robot. Is there anything I can help you with?
+Hello, this is an intelligent robot. Is there anything I can help you with?
 
 here is a list of things that I As an AI language model, can do, along with a brief explanation of each:
 
@@ -64,7 +64,7 @@ here is a list of things that I As an AI language model, can do, along with a br
     ''',
 
     '你好': '''
-你好，这是一个智能问答机器人，请问有什么可以帮到你的吗？
+你好，这是一个智能机器人，请问有什么可以帮到你的吗？
 
 以下是我可以做的事情：
 

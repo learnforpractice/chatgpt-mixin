@@ -69,28 +69,32 @@ class ChatGPTBot:
 
     def generate_prompt(self, conversation_id: str, message: str) -> List[Dict[str, str]]:
         parent_message_id = self.get_last_message_id(conversation_id)
-        # stop = "<|im_end|>\n\n"
         parent_messages: list[Message] = []
         total_length = 0
         context_messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "system", "content": "You are a helpful assistant"},
         ]
-        if parent_message_id:
-            for _ in range(10):
-                parent_message = self.get_parent_messsage(conversation_id, parent_message_id)
-                assert parent_message
-                parent_messages.append(parent_message)
-                if not parent_message.parent_message_id:
-                    break
-                parent_message_id = parent_message.parent_message_id
+        if not parent_message_id:
+            context_messages.append({"role": "user", "content": message})
+            return context_messages
 
-            parent_messages.reverse()
-            for parent_message in parent_messages:
-                context_messages.append({"role": "user", "content": parent_message.message})
-                context_messages.append({"role": "assistant", "content": parent_message.completion})
-                total_length += len(parent_message.message) + len(parent_message.completion)
-                if total_length > 2048:
-                    break
+        #add latest 10 conversations to prompt
+        for _ in range(10):
+            parent_message = self.get_parent_messsage(conversation_id, parent_message_id)
+            assert parent_message
+            total_length += len(parent_message.message) + len(parent_message.completion)
+            if total_length > 2048:
+                break
+            parent_messages.append(parent_message)
+            parent_message_id = parent_message.parent_message_id
+            if not parent_message_id:
+                break
+
+        parent_messages.reverse()
+        for parent_message in parent_messages:
+            context_messages.append({"role": "user", "content": parent_message.message})
+            context_messages.append({"role": "assistant", "content": parent_message.completion})
+
         context_messages.append({"role": "user", "content": message})
         return context_messages
 
@@ -105,9 +109,6 @@ class ChatGPTBot:
         self.users[conversation_id] = True
 
         prompt = self.generate_prompt(conversation_id, message)
-        if len(prompt) > 3000:
-            yield 'Error: query too large!'
-            return
         logger.info('+++prompt:%s', prompt)
         try:
             response = openai.ChatCompletion.create(
