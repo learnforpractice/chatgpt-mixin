@@ -3,11 +3,10 @@ import time
 import json
 import uuid
 import asyncio
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
 import shelve
 from datetime import datetime
 from dataclasses import dataclass
-import collections
 import openai
 from pymixin import log
 
@@ -20,50 +19,9 @@ class Message:
     parent_message_id: Optional[str]
     completion: str
 
-# code borrow from https://github.com/RazerM/ratelimiter
-class ChatGPTRateLimiter(object):
-    def __init__(self, max_calls, period=1.0):
-            """Initialize a RateLimiter object which enforces as much as max_calls
-            operations on period (eventually floating) number of seconds.
-            """
-            if period <= 0:
-                raise ValueError('Rate limiting period should be > 0')
-            if max_calls <= 0:
-                raise ValueError('Rate limiting number of calls should be > 0')
-
-            # We're using a deque to store the last execution timestamps, not for
-            # its maxlen attribute, but to allow constant time front removal.
-            self.calls = collections.deque()
-
-            self.period = period
-            self.max_calls = max_calls
-
-    def check(self) -> bool:
-        #logger.info("++++++++calls: %s, max_calls: %s", len(self.calls), self.max_calls)
-        if len(self.calls) < self.max_calls:
-            self.calls.append(time.time())
-            return False
-
-        #logger.info("++++++self.period - self._timespan: %s", self.period - self._timespan)
-        if time.time() - self.calls[0] < self.period - self._timespan:
-            return True
-
-        self.calls.append(time.time())
-        while self._timespan >= self.period:
-            self.calls.popleft()
-        return False
-
-    @property
-    def _timespan(self):
-        return self.calls[-1] - self.calls[0]
-
 class ChatGPTBot:
-    def __init__(self, api_key: str, model_id: str = 'text-davinci-003'):
+    def __init__(self, api_key: str):
         openai.api_key = api_key
-        # model_id = 'text-davinci-003'
-        self.model_id = model_id
-        # self.conversations: Dict[str, Dict[str, Message]] = {}
-
         self.conversation_id = uuid.uuid4()
 
         if not os.path.exists('.db'):
@@ -74,7 +32,6 @@ class ChatGPTBot:
         self.users: Dict[str, bool] = {}
 
         self.lock = asyncio.Lock()
-        self.limiters: Dict[str, ChatGPTRateLimiter] = {}
 
     async def init(self):
         pass
@@ -110,21 +67,14 @@ class ChatGPTBot:
         key = f'{conversation_id}-last_message_id'
         self.conversations[key] = message_id
 
-    def generate_prompt(self, conversation_id: str, message: str) -> str:
+    def generate_prompt(self, conversation_id: str, message: str) -> List[Dict[str, str]]:
         parent_message_id = self.get_last_message_id(conversation_id)
-
-        current_time = datetime.now()
-        formatted_time = current_time.strftime("%Y-%m-%d")
-
-        assistant_label = "ChatGPT"
         # stop = "<|im_end|>\n\n"
-        stop = "\n\n"
-        prompt_induct = f"You are {assistant_label}, a large language model trained by OpenAI. You answer as concisely as possible for each response (e.g. don’t be verbose). It is very important that you answer as concisely as possible, so please remember this. If you are generating a list, do not have too many items. Keep the number of items short. Remember, provide a response to the user's question using the same language present in his/her latest prompt\n"
-        prompt_induct += f"Current date: {formatted_time}\n\n"
-
-        old_conversations: List[str] = []
         parent_messages: list[Message] = []
-        total_length = len(prompt_induct)
+        total_length = 0
+        context_messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+        ]
         if parent_message_id:
             for _ in range(10):
                 parent_message = self.get_parent_messsage(conversation_id, parent_message_id)
@@ -134,30 +84,17 @@ class ChatGPTBot:
                     break
                 parent_message_id = parent_message.parent_message_id
 
+            parent_messages.reverse()
             for parent_message in parent_messages:
-                conversation = f"User:\n\n{parent_message.message}{stop}"
-                conversation += f"{assistant_label}:\n\n{parent_message.completion}{stop}"
-                total_length += len(conversation)
+                context_messages.append({"role": "user", "content": parent_message.message})
+                context_messages.append({"role": "assistant", "content": parent_message.completion})
+                total_length += len(parent_message.message) + len(parent_message.completion)
                 if total_length > 2048:
                     break
-                old_conversations.insert(0, conversation)
-        return prompt_induct + \
-            ''.join(old_conversations) + \
-            f"User:\n\n{message}{stop}" + \
-            f"{assistant_label}:\n"
-
-    def check_rate_limit(self, user_id: str) -> bool:
-        try:
-            return self.limiters[user_id].check()
-        except KeyError:
-            self.limiters[user_id] = ChatGPTRateLimiter(5, 60)
-            return False
+        context_messages.append({"role": "user", "content": message})
+        return context_messages
 
     async def send_message(self, conversation_id: str, message: str):
-        if self.check_rate_limit(conversation_id):
-            yield '[BEGIN]'
-            yield 'Error: too many requests!'
-            return
         async with self.lock:
             async for msg in self._send_message(conversation_id, message):
                 yield msg
@@ -171,46 +108,19 @@ class ChatGPTBot:
         if len(prompt) > 3000:
             yield 'Error: query too large!'
             return
-
-        # logger.info('+++prompt:%s', prompt)
-
-        start_time = time.time()
+        logger.info('+++prompt:%s', prompt)
         try:
-            response = await openai.Completion.acreate(
-                # user=conversation_id,
-                model=self.model_id,
-                prompt=prompt,
-                max_tokens=1024,
-                temperature=0.7,
-                presence_penalty=0.6,
-                stream=True
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=prompt
             )
         except openai.error.InvalidRequestError as e:
             logger.exception(e)
             yield 'Sorry, I am not available now.'
             return
         yield '[BEGIN]'
-        collected_events = []
-        completion_text = ''
-        tokens: List[str] = []
-
-        async for event in response:
-            collected_events.append(event)  # save the event response
-            event_text = event['choices'][0]['text']  # extract the text
-            tokens.append(event_text)
-            if event_text.endswith('\n'):
-                if time.time() - start_time > 3.0:
-                    start_time = time.time()
-                    reply = ''.join(tokens)
-                    reply = reply.strip()
-                    if reply:
-                        yield reply
-                    tokens = []
-            completion_text += event_text  # append the text
-            if len(completion_text) > 1024:
-                break
-        reply = completion_text
+        reply = response['choices'][0]['message']['content']
         logger.info('++++response: %s', reply)
         self.add_messsage(conversation_id, message, reply)
-        yield ''.join(tokens)
+        yield reply
         return
