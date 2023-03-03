@@ -111,8 +111,8 @@ class ChatGPTBot:
         prompt = self.generate_prompt(conversation_id, message)
         logger.info('+++prompt:%s', prompt)
         try:
-            yield '[BEGIN]\n'
-            response = openai.ChatCompletion.create(
+            yield '[BEGIN]'
+            response = await openai.ChatCompletion.acreate(
                 model="gpt-3.5-turbo",
                 messages=prompt
             )
@@ -124,4 +124,51 @@ class ChatGPTBot:
         logger.info('++++response: %s', reply)
         self.add_messsage(conversation_id, message, reply)
         yield reply
+        return
+
+    async def _send_message_stream(self, conversation_id: str, message: str):
+        if len(message) == 0:
+            return
+        self.users[conversation_id] = True
+
+        prompt = self.generate_prompt(conversation_id, message)
+        start_time = time.time()
+        try:
+            yield '[BEGIN]\n'
+            response = await openai.ChatCompletion.acreate(
+                model="gpt-3.5-turbo",
+                messages=prompt,
+                stream=True
+            )
+        except openai.error.InvalidRequestError as e:
+            logger.exception(e)
+            yield 'Sorry, I am not available now.'
+            return
+        collected_events = []
+        completion_text = ''
+        tokens: List[str] = []
+
+        async for event in response:
+            collected_events.append(event)  # save the event response
+            logger.info(event)
+            delta = event['choices'][0]['delta']
+            if not delta:
+                break
+            if not 'content' in delta:
+                continue
+            event_text = delta['content']  # extract the text
+            tokens.append(event_text)
+            if event_text.endswith('\n'):
+                if time.time() - start_time > 3.0:
+                    start_time = time.time()
+                    reply = ''.join(tokens)
+                    reply = reply.strip()
+                    if reply:
+                        yield reply
+                    tokens = []
+            completion_text += event_text  # append the text
+        reply = completion_text
+        logger.info('++++response: %s', reply)
+        self.add_messsage(conversation_id, message, reply)
+        yield ''.join(tokens)
         return
