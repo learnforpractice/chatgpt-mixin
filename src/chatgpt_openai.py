@@ -19,14 +19,14 @@ class Message:
     parent_message_id: Optional[str]
     completion: str
 
+if not os.path.exists('.db'):
+    os.mkdir('.db')
+g_conversations = shelve.open(f".db/conversations")
+
 class ChatGPTBot:
     def __init__(self, api_key: str):
         openai.api_key = api_key
         self.conversation_id = uuid.uuid4()
-
-        if not os.path.exists('.db'):
-            os.mkdir('.db')
-        self.conversations = shelve.open(f".db/conversations")
 
         self.standby = False
         self.users: Dict[str, bool] = {}
@@ -41,31 +41,31 @@ class ChatGPTBot:
 
     def get_parent_messsage(self, conversation_id: str, message_id: str) -> Optional[Message]:
         key = self.generate_key(conversation_id, message_id)
-        if key in self.conversations:
-            return self.conversations[key]
+        if key in g_conversations:
+            return g_conversations[key]
         return None
 
     def add_messsage(self, conversation_id: str, query: str, reply: str) -> str:
 
         message_id = str(uuid.uuid4())
         key = self.generate_key(conversation_id, message_id)
-        assert not key in self.conversations
+        assert not key in g_conversations
 
         parent_message_id = self.get_last_message_id(conversation_id)
         message = Message(query, parent_message_id, reply)
-        self.conversations[key] = message
+        g_conversations[key] = message
         self.save_last_message_id(conversation_id, message_id)
         return message_id
 
     def get_last_message_id(self, conversation_id: str) -> Optional[str]:
         key = f'{conversation_id}-last_message_id'
-        if key in self.conversations:
-            return self.conversations[key]
+        if key in g_conversations:
+            return g_conversations[key]
         return None
 
     def save_last_message_id(self, conversation_id: str, message_id):
         key = f'{conversation_id}-last_message_id'
-        self.conversations[key] = message_id
+        g_conversations[key] = message_id
 
     def generate_prompt(self, conversation_id: str, message: str) -> List[Dict[str, str]]:
         parent_message_id = self.get_last_message_id(conversation_id)
@@ -111,6 +111,7 @@ class ChatGPTBot:
         prompt = self.generate_prompt(conversation_id, message)
         logger.info('+++prompt:%s', prompt)
         try:
+            yield '[BEGIN]\n'
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=prompt
@@ -119,7 +120,6 @@ class ChatGPTBot:
             logger.exception(e)
             yield 'Sorry, I am not available now.'
             return
-        yield '[BEGIN]\n'
         reply = response['choices'][0]['message']['content']
         logger.info('++++response: %s', reply)
         self.add_messsage(conversation_id, message, reply)
