@@ -24,7 +24,7 @@ if not os.path.exists('.db'):
 g_conversations = shelve.open(f".db/conversations")
 
 class ChatGPTBot:
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, stream=True):
         openai.api_key = api_key
         self.conversation_id = uuid.uuid4()
 
@@ -32,6 +32,7 @@ class ChatGPTBot:
         self.users: Dict[str, bool] = {}
 
         self.lock = asyncio.Lock()
+        self.stream = stream
 
     async def init(self):
         pass
@@ -100,8 +101,12 @@ class ChatGPTBot:
 
     async def send_message(self, conversation_id: str, message: str):
         async with self.lock:
-            async for msg in self._send_message(conversation_id, message):
-                yield msg
+            if self.stream:
+                async for msg in self._send_message_stream(conversation_id, message):
+                    yield msg
+            else:
+                async for msg in self._send_message(conversation_id, message):
+                    yield msg
 
     async def _send_message(self, conversation_id: str, message: str):
         if len(message) == 0:
@@ -134,7 +139,7 @@ class ChatGPTBot:
         prompt = self.generate_prompt(conversation_id, message)
         start_time = time.time()
         try:
-            yield '[BEGIN]\n'
+            yield '[BEGIN]'
             response = await openai.ChatCompletion.acreate(
                 model="gpt-3.5-turbo",
                 messages=prompt,
@@ -150,7 +155,7 @@ class ChatGPTBot:
 
         async for event in response:
             collected_events.append(event)  # save the event response
-            logger.info(event)
+            # logger.info(event)
             delta = event['choices'][0]['delta']
             if not delta:
                 break
