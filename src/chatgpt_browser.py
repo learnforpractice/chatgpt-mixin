@@ -162,7 +162,7 @@ class ChatGPTBot:
             logger.info("+++++++saving data on exit...")
             self.close()
 
-    def close(self):
+    async def close(self):
         self.users.close()
         self.expired_user.close()
 

@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import asyncio
+import signal
 import base64
 import yaml
 import traceback
@@ -175,6 +176,20 @@ class MixinBot(MixinWSApi):
                 self.bots.append(bot)
         
         assert self.bots
+
+        loop = asyncio.get_running_loop()
+        loop.add_signal_handler(signal.SIGINT, lambda: asyncio.create_task(self.handle_signal(signal.SIGINT)))
+        loop.add_signal_handler(signal.SIGTERM, lambda: asyncio.create_task(self.handle_signal(signal.SIGTERM)))
+
+    async def handle_signal(self, signum):
+        logger.info("+++++++handle signal: %s", signum)
+        for bot in self.bots:
+            logger.info("++close bot: %s", bot)
+            await bot.close()
+        loop = asyncio.get_running_loop()
+        loop.remove_signal_handler(signal.SIGINT)
+        loop.remove_signal_handler(signal.SIGTERM)
+        os.kill(os.getpid(), signal.SIGINT)
 
     def choose_bot(self, user_id):
         bots = []

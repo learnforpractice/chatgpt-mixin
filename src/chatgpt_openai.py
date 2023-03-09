@@ -36,7 +36,14 @@ class ChatGPTBot:
 
     async def init(self):
         pass
-    
+
+    async def close(self):
+        global g_conversations
+        if not g_conversations:
+            return
+        g_conversations.close()
+        g_conversations = None
+
     def generate_key(self, conversation_id: str, message_id: str):
         return f'{conversation_id}-{message_id}'
 
@@ -64,6 +71,17 @@ class ChatGPTBot:
             return g_conversations[key]
         return None
 
+    def get_role(self, conversation_id: str) -> str:
+        key = self.generate_key(conversation_id, 'role')
+        try:
+            return g_conversations[key]
+        except KeyError:
+            return 'You are a helpful assistant'
+
+    def set_role(self, conversation_id: str, role: str):
+        key = self.generate_key(conversation_id, 'role')
+        g_conversations[key] = role
+
     def save_last_message_id(self, conversation_id: str, message_id):
         key = f'{conversation_id}-last_message_id'
         g_conversations[key] = message_id
@@ -72,8 +90,9 @@ class ChatGPTBot:
         parent_message_id = self.get_last_message_id(conversation_id)
         parent_messages: list[Message] = []
         total_length = 0
+        content = self.get_role(conversation_id)
         context_messages=[
-            {"role": "system", "content": "You are a helpful assistant"},
+            {"role": "system", "content": content},
         ]
         if not parent_message_id:
             context_messages.append({"role": "user", "content": message})
@@ -100,6 +119,18 @@ class ChatGPTBot:
         return context_messages
 
     async def send_message(self, conversation_id: str, message: str):
+        if message.startswith('/role '):
+            role = message.split(' ', 1)[1]
+            self.set_role(conversation_id, role)
+            yield "[BEGIN]"
+            yield "Done!"
+            return
+        elif message == '/role':
+            role = self.get_role(conversation_id)
+            yield "[BEGIN]"
+            yield role
+            return
+
         async with self.lock:
             if self.stream:
                 async for msg in self._send_message_stream(conversation_id, message):
