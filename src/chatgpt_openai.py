@@ -23,6 +23,9 @@ if not os.path.exists('.db'):
     os.mkdir('.db')
 g_conversations = shelve.open(f".db/conversations")
 
+default_role = 'You are a helpful assistant'
+max_prompt_token = 3000.0
+
 class ChatGPTBot:
     def __init__(self, api_key: str, stream=True):
         openai.api_key = api_key
@@ -62,31 +65,49 @@ class ChatGPTBot:
         parent_message_id = self.get_last_message_id(conversation_id)
         message = Message(query, parent_message_id, reply)
         g_conversations[key] = message
-        self.save_last_message_id(conversation_id, message_id)
+        self.set_last_message_id(conversation_id, message_id)
         return message_id
 
     def get_last_message_id(self, conversation_id: str) -> Optional[str]:
         key = f'{conversation_id}-last_message_id'
-        if key in g_conversations:
+        try:
             return g_conversations[key]
-        return None
+        except KeyError:
+            return None
+
+    def set_last_message_id(self, conversation_id: str, message_id):
+        key = f'{conversation_id}-last_message_id'
+        g_conversations[key] = message_id
+
+    def clear_last_message_id(self, conversation_id: str):
+        key = f'{conversation_id}-last_message_id'
+        try:
+            del g_conversations[key]
+        except KeyError:
+            pass
 
     def get_role(self, conversation_id: str) -> str:
         key = self.generate_key(conversation_id, 'role')
         try:
             return g_conversations[key]
         except KeyError:
-            return 'You are a helpful assistant'
+            return default_role
 
     def set_role(self, conversation_id: str, role: str):
+        if role == self.get_role(conversation_id):
+            return
         key = self.generate_key(conversation_id, 'role')
         g_conversations[key] = role
+        self.clear_last_message_id(conversation_id)
 
-    def save_last_message_id(self, conversation_id: str, message_id):
-        key = f'{conversation_id}-last_message_id'
-        g_conversations[key] = message_id
+    def set_default_role(self, conversation_id: str):
+        if default_role == self.get_role(conversation_id):
+            return
+        key = self.generate_key(conversation_id, 'role')
+        g_conversations[key] = default_role
+        self.clear_last_message_id(conversation_id)
 
-    def generate_prompt(self, conversation_id: str, message: str) -> List[Dict[str, str]]:
+    def generate_prompt(self, conversation_id: str, message: str) -> Optional[List[Dict[str, str]]]:
         parent_message_id = self.get_last_message_id(conversation_id)
         parent_messages: list[Message] = []
         total_length = 0
@@ -98,18 +119,33 @@ class ChatGPTBot:
             context_messages.append({"role": "user", "content": message})
             return context_messages
 
-        #add latest 10 conversations to prompt
-        for _ in range(10):
+        tokens_count = len(message.split()) / 0.75
+        for ch in message:
+            if ord(ch) > 256:
+                tokens_count += 2
+
+        if tokens_count > max_prompt_token:
+            return None
+
+        #add latest conversations to prompt
+        while True:
             parent_message = self.get_parent_messsage(conversation_id, parent_message_id)
             assert parent_message
-            total_length += len(parent_message.message) + len(parent_message.completion)
-            if total_length > 2048:
+            contents = ' '.join((parent_message.message, parent_message.completion))
+            current_tokens_count = len(contents.split()) / 0.75
+            # count unicode characters tokens
+            for ch in contents:
+                if ord(ch) > 256:
+                    current_tokens_count += 2
+            if tokens_count + current_tokens_count > max_prompt_token:
                 break
+            tokens_count += current_tokens_count
+
             parent_messages.append(parent_message)
             parent_message_id = parent_message.parent_message_id
             if not parent_message_id:
                 break
-
+        logger.info("+++++++estimate the token count: %s", tokens_count)
         parent_messages.reverse()
         for parent_message in parent_messages:
             context_messages.append({"role": "user", "content": parent_message.message})
@@ -130,6 +166,16 @@ class ChatGPTBot:
             yield "[BEGIN]"
             yield role
             return
+        elif message == '/reset_role':
+            role = self.set_default_role(conversation_id)
+            yield "[BEGIN]"
+            yield 'Done!'
+            return
+        elif message == '/reset':
+            role = self.clear_last_message_id(conversation_id)
+            yield "[BEGIN]"
+            yield 'Done!'
+            return
 
         async with self.lock:
             if self.stream:
@@ -145,7 +191,11 @@ class ChatGPTBot:
         self.users[conversation_id] = True
 
         prompt = self.generate_prompt(conversation_id, message)
-        logger.info('+++prompt:%s', prompt)
+        # logger.info('+++prompt:%s', prompt)
+        if not prompt:
+            yield '[BEGIN]'
+            yield 'oops, something went wrong, please try to reduce your worlds.'
+            return
         try:
             yield '[BEGIN]'
             response = await openai.ChatCompletion.acreate(
