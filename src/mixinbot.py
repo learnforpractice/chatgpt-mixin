@@ -189,7 +189,8 @@ class MixinBot(MixinWSApi):
         loop = asyncio.get_running_loop()
         loop.remove_signal_handler(signal.SIGINT)
         loop.remove_signal_handler(signal.SIGTERM)
-        os.kill(os.getpid(), signal.SIGINT)
+        sys.exit(0)
+        # os.kill(os.getpid(), signal.SIGINT)
 
     def choose_bot(self, user_id):
         bots = []
