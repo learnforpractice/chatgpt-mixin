@@ -7,6 +7,7 @@ from typing import List, Dict, Tuple, Optional, Any
 import shelve
 from datetime import datetime
 from dataclasses import dataclass
+import tiktoken
 import openai
 from pymixin import log
 
@@ -24,7 +25,8 @@ if not os.path.exists('.db'):
 g_conversations = shelve.open(f".db/conversations")
 
 default_role = 'You are a helpful assistant'
-max_prompt_token = 3000.0
+max_prompt_token = 3000
+gpt_encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
 
 class ChatGPTBot:
     def __init__(self, api_key: str, stream=True):
@@ -55,6 +57,10 @@ class ChatGPTBot:
         if key in g_conversations:
             return g_conversations[key]
         return None
+
+    def count_tokens(self, message) -> int:
+        tokens = gpt_encoding.encode(message)
+        return len(tokens)
 
     def add_messsage(self, conversation_id: str, query: str, reply: str) -> str:
 
@@ -119,10 +125,7 @@ class ChatGPTBot:
             context_messages.append({"role": "user", "content": message})
             return context_messages
 
-        tokens_count = len(message.split()) / 0.75
-        for ch in message:
-            if ord(ch) > 256:
-                tokens_count += 2
+        tokens_count = self.count_tokens(message)
 
         if tokens_count > max_prompt_token:
             return None
@@ -132,11 +135,8 @@ class ChatGPTBot:
             parent_message = self.get_parent_messsage(conversation_id, parent_message_id)
             assert parent_message
             contents = ' '.join((parent_message.message, parent_message.completion))
-            current_tokens_count = len(contents.split()) / 0.75
+            current_tokens_count = self.count_tokens(contents)
             # count unicode characters tokens
-            for ch in contents:
-                if ord(ch) > 256:
-                    current_tokens_count += 2
             if tokens_count + current_tokens_count > max_prompt_token:
                 break
             tokens_count += current_tokens_count
@@ -218,6 +218,10 @@ class ChatGPTBot:
         self.users[conversation_id] = True
 
         prompt = self.generate_prompt(conversation_id, message)
+        if not prompt:
+            yield '[BEGIN]'
+            yield 'oops, something went wrong, please try to reduce your worlds.'
+            return
         start_time = time.time()
         try:
             yield '[BEGIN]'
