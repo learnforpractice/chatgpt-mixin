@@ -1,2 +1,2 @@
-v0.1.5 release
-Added support for access openai model with API key
+v0.1.6 release
+Added support for configuring the role of the bot

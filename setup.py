@@ -4,7 +4,7 @@ from distutils.core import setup
 
 setup(
     name="chatgpt-mixin",
-    version="0.1.5",
+    version="0.1.6",
     description="ChatGPT Bot For Mixin",
     author='learnforpractice',
     license="Apache 2.0",

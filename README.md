@@ -64,6 +64,60 @@ If you are running a bot of accessing model via browser in a server, you need to
 
 On the first time you start this bot, automated processes such as auto-filling of account names and passwords will be carried out, but you will still need to manually solve CAPTCHAs during the login process.
 
+
+# Helpfull Commands
+
+This is a list of helpful commands to use with the bot.
+
+## /role
+
+The `/role` command is used to get or set the role of the bot.
+
+### Set role
+
+To set the role of the bot, use the following format:
+
+Usage:
+```
+/role <role description>
+```
+
+Example:
+```
+/role You are a helpful assistant
+```
+
+### Get role
+
+To get the current role of the bot, use the following command:
+
+```
+/role
+```
+
+The bot will respond with the current role.
+
+## /reset_role
+
+The `/reset_role` command is used to reset the role of the bot to the default role.
+
+Usage:
+```
+/reset_role
+```
+
+## /reset
+
+The `/reset` command is used to clear the context of the bot.
+
+Usage:
+```
+/reset
+```
+
+These commands should help you better interact with the bot.
+
+
 # Acknowledgements
 
 - [chatgpt-api](https://github.com/transitive-bullshit/chatgpt-api)
