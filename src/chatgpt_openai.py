@@ -3,6 +3,7 @@ import time
 import json
 import uuid
 import asyncio
+from collections import deque
 from typing import List, Dict, Tuple, Optional, Any
 import shelve
 from datetime import datetime
@@ -14,12 +15,6 @@ from pymixin import log
 logger = log.get_logger(__name__)
 logger.addHandler(log.handler)
 
-@dataclass
-class Message:
-    message: str
-    parent_message_id: Optional[str]
-    completion: str
-
 if not os.path.exists('.db'):
     os.mkdir('.db')
 g_conversations = shelve.open(f".db/conversations")
@@ -27,6 +22,18 @@ g_conversations = shelve.open(f".db/conversations")
 default_role = 'You are a helpful assistant'
 max_prompt_token = 3000
 gpt_encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
+
+rate_limit_size = 5
+rate_limit_window_seconds = 60
+
+class RateLimitExceededError(Exception):
+    pass
+
+@dataclass
+class Message:
+    message: str
+    parent_message_id: Optional[str]
+    completion: str
 
 class ChatGPTBot:
     def __init__(self, api_key: str, stream=True):
@@ -38,6 +45,7 @@ class ChatGPTBot:
 
         self.lock = asyncio.Lock()
         self.stream = stream
+        self.rate_limits: Dict[str, deque] = {}
 
     async def init(self):
         pass
@@ -154,7 +162,32 @@ class ChatGPTBot:
         context_messages.append({"role": "user", "content": message})
         return context_messages
 
+    def check_rate_limit(self, conversation_id: str):
+        try:
+            request_timestamps = self.rate_limits[conversation_id]
+        except KeyError:
+            request_timestamps = deque(maxlen=rate_limit_size)
+            self.rate_limits[conversation_id] = request_timestamps
+
+        current_time = time.time()
+        # Remove timestamps older than the window
+        while request_timestamps and current_time - request_timestamps[0] > rate_limit_window_seconds:
+            request_timestamps.popleft()
+
+        # Check if the request limit has been reached
+        if len(request_timestamps) >= rate_limit_size:
+            raise RateLimitExceededError(f"Rate limit exceeded. You can make the next request after {request_timestamps[0] + rate_limit_window_seconds - current_time:.2f} seconds.")
+
+        request_timestamps.append(current_time)
+
     async def send_message(self, conversation_id: str, message: str):
+        try:
+            self.check_rate_limit(conversation_id)
+        except RateLimitExceededError as e:
+            yield "[BEGIN]"
+            yield str(e)
+            return
+
         if message.startswith('/role '):
             role = message.split(' ', 1)[1]
             self.set_role(conversation_id, role)
