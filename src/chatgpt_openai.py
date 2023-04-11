@@ -126,14 +126,14 @@ class ChatGPTBot:
         parent_messages: list[Message] = []
         total_length = 0
         content = self.get_role(conversation_id)
-        context_messages=[
-            {"role": "system", "content": content},
-        ]
+        tokens_count = self.count_tokens(content)
+
+        context_messages=[]
         if not parent_message_id:
             context_messages.append({"role": "user", "content": message})
             return context_messages
 
-        tokens_count = self.count_tokens(message)
+        tokens_count += self.count_tokens(message)
 
         if tokens_count > max_prompt_token:
             return None
@@ -159,6 +159,7 @@ class ChatGPTBot:
             context_messages.append({"role": "user", "content": parent_message.message})
             context_messages.append({"role": "assistant", "content": parent_message.completion})
 
+        context_messages.append({"role": "system", "content": content})
         context_messages.append({"role": "user", "content": message})
         return context_messages
 

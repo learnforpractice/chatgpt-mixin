@@ -99,7 +99,7 @@ class ChatGPTUser:
 
 class ChatGPTBot:
 
-    def __init__(self, PLAY: Any, user: str, password: str):
+    def __init__(self, PLAY: Any, user: str, password: str, model='gpt-4'):
         self.page: Optional[Any] = None
         self.access_token: Optional[str] = None
 
@@ -120,6 +120,7 @@ class ChatGPTBot:
         self.expired_user = shelve.open(f".db/{user}-2")
 
         self.alive_counter = 0
+        self.model = model #'text-davinci-002-render',
 
     @property
     def standby(self):
@@ -318,6 +319,11 @@ class ChatGPTBot:
         self.users[user_id] = user
 
     async def send_message(self, user_id, message):
+        if message == '/reset':
+            self.reset_conversation_id(user_id)
+            yield '[BEGIN]'
+            yield 'Done'
+            return
         try:
             async with self.lock:
                 user = self.get_user(user_id)
@@ -348,7 +354,7 @@ class ChatGPTBot:
                     }
                 }
             ],
-            "model": 'text-davinci-002-render',
+            "model": self.model,
             "parent_message_id": user.parent_message_id
         }
 
