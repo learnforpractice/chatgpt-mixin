@@ -1,4 +1,4 @@
-name: build tinygo
+name: build chatgpt-mixin
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
     strategy:
       matrix:
         python-version: [3.9]
-        os: ['ubuntu-18.04']
+        os: ['ubuntu-20.04']
       fail-fast: false
 
     steps:
