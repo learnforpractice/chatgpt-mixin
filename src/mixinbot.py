@@ -1,24 +1,22 @@
 # -*- coding: utf-8 -*-
 
+import asyncio
+import base64
 import os
+import platform
+import signal
 import sys
 import time
-import asyncio
-import signal
-import base64
-import yaml
 import traceback
-import websockets
-import platform
-import httpx
-from datetime import datetime
-from typing import Optional, List, Dict, Any, Union, Set
-
-from pymixin.mixin_ws_api import MixinWSApi, MessageView
-from pymixin import utils
-from pymixin import log
-
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Set, Union
+
+import httpx
+import websockets
+import yaml
+from pymixin import log, utils
+from pymixin.mixin_ws_api import MessageView, MixinWSApi
 
 logger = log.get_logger(__name__)
 logger.addHandler(log.handler)
@@ -159,6 +157,7 @@ class MixinBot(MixinWSApi):
 
         if self.chatgpt_accounts:
             from playwright.async_api import async_playwright
+
             from .chatgpt_browser import ChatGPTBot
             PLAY = await async_playwright().start()
             for account in self.chatgpt_accounts:

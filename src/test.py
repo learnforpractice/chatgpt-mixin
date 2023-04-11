@@ -3,9 +3,9 @@ import shutil
 from dataclasses import dataclass
 from typing import List
 
+import openai
 import pytest
 
-import openai
 from chatgpt_openai import ChatGPTBot
 
 file_dir = os.path.dirname(os.path.realpath(__file__))

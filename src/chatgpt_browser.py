@@ -1,22 +1,21 @@
 # -*- coding: utf-8 -*-
 
-import os
-import re
+import asyncio
 import json
+import logging
+import os
+import random
+import re
+import shelve
 import time
 import uuid
-import random
-import asyncio
-import logging
-import shelve
+from typing import Any, Dict, Optional, Tuple, Union
 
-from typing import Optional, Dict, Tuple, Any, Union
+from cf_clearance import StealthConfig
 from playwright.async_api import BrowserContext as AsyncContext
 from playwright.async_api import Page as AsyncPage
-from cf_clearance import StealthConfig
-
-
 from pymixin import log
+
 logger = log.get_logger(__name__)
 logger.addHandler(log.handler)
 
