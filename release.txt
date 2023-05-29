@@ -1,2 +1,2 @@
-v0.1.6 release
-Added support for configuring the role of the bot
+v0.1.7 release
+1. Improve SIGINT & SIGTERM signal handling
