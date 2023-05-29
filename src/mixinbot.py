@@ -1,22 +1,24 @@
 # -*- coding: utf-8 -*-
 
-import asyncio
-import base64
 import os
-import platform
-import signal
 import sys
 import time
-import traceback
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Union
-
-import httpx
-import websockets
+import asyncio
+import signal
+import base64
 import yaml
-from pymixin import log, utils
-from pymixin.mixin_ws_api import MessageView, MixinWSApi
+import traceback
+import websockets
+import platform
+import httpx
+from datetime import datetime
+from typing import Optional, List, Dict, Any, Union, Set
+
+from pymixin.mixin_ws_api import MixinWSApi, MessageView
+from pymixin import utils
+from pymixin import log
+
+from dataclasses import dataclass
 
 logger = log.get_logger(__name__)
 logger.addHandler(log.handler)
@@ -142,13 +144,21 @@ class MixinBot(MixinWSApi):
         # openai_api_key
         self.bots = []
         self.standby_bots = []
+        self._paused = False
+
+    @property
+    def paused(self):
+        return self._paused
+    
+    @paused.setter
+    def paused(self, value):
+        self._paused = value
 
     async def init(self):
         asyncio.create_task(self.handle_questions())
 
         if self.chatgpt_accounts:
             from playwright.async_api import async_playwright
-
             from .chatgpt_browser import ChatGPTBot
             PLAY = await async_playwright().start()
             for account in self.chatgpt_accounts:
@@ -173,9 +183,14 @@ class MixinBot(MixinWSApi):
 
     async def handle_signal(self, signum):
         logger.info("+++++++handle signal: %s", signum)
+        for bot in self.bots:
+            logger.info("++close bot: %s", bot)
+            await bot.close()
         loop = asyncio.get_running_loop()
-        for task in asyncio.all_tasks(loop):
-            task.cancel()
+        loop.remove_signal_handler(signal.SIGINT)
+        loop.remove_signal_handler(signal.SIGTERM)
+        sys.exit(0)
+        # os.kill(os.getpid(), signal.SIGINT)
 
     def choose_bot(self, user_id):
         bots = []
@@ -247,32 +262,26 @@ class MixinBot(MixinWSApi):
 
     async def handle_questions(self):
         while True:
-            try:
-                await asyncio.sleep(15.0)
-                handled_question = []
-                saved_questions = self.saved_questions.copy()
-                for user_id, question in saved_questions.items():
-                    try:
-                        logger.info("++++++++handle question: %s", question.data)
-                        if await self.send_message_to_chat_gpt2(question.conversation_id, question.user_id, question.data):
-                            handled_question.append(user_id)
-                    except Exception as e:
-                        logger.info("%s", str(e))
-                        continue
-                for question in handled_question:
-                    del self.saved_questions[question]
-            except asyncio.exceptions.CancelledError:
-                logger.info("++++handle_questions received CancelledError exception, exit..")
-                return
+            await asyncio.sleep(15.0)
+            handled_question = []
+            saved_questions = self.saved_questions.copy()
+            for user_id, question in saved_questions.items():
+                try:
+                    logger.info("++++++++handle question: %s", question.data)
+                    if await self.send_message_to_chat_gpt2(question.conversation_id, question.user_id, question.data):
+                        handled_question.append(user_id)
+                except Exception as e:
+                    logger.info("%s", str(e))
+                    continue
+            for question in handled_question:
+                del self.saved_questions[question]
 
     def save_question(self, conversation_id, user_id, data):
         self.saved_questions[user_id] = SavedQuestion(conversation_id, user_id, data)
 
-    async def handle_message(self, conversation_id, user_id, message):
+    async def handle_user_message(self, conversation_id, user_id, message):
         try:
             await self.send_message_to_chat_gpt(conversation_id, user_id, message)
-        except asyncio.exceptions.CancelledError:
-            logger.info("++++handle_group_message received CancelledError, exit...")
         except Exception as e:
             logger.exception(e)
             if self.developer_user_id:
@@ -305,10 +314,7 @@ class MixinBot(MixinWSApi):
         querys.append(f"\nInstructions: Using the provided web search results, write a comprehensive reply to the given prompt. Make sure to cite results using [[number](URL)] notation after the reference. If the provided search results refer to multiple subjects with the same name, write separate answers for each subject.\nPrompt: {prompt}")
         return "\n".join(querys)
     async def handle_group_message(self, conversation_id, user_id, data):
-        try:
-            await self.send_message_to_chat_gpt2(conversation_id, user_id, data)
-        except asyncio.exceptions.CancelledError:
-            logger.info("++++handle_group_message received CancelledError, exit...")
+        await self.send_message_to_chat_gpt2(conversation_id, user_id, data)
 
     async def on_message(self, id: str, action: str, msg: Optional[MessageView]):
         if action not in ["ACKNOWLEDGE_MESSAGE_RECEIPT", "CREATE_MESSAGE", "LIST_PENDING_MESSAGES"]:
@@ -358,19 +364,31 @@ class MixinBot(MixinWSApi):
             pass
 
         if utils.unique_conversation_id(msg.user_id, self.client_id) == msg.conversation_id:
-            asyncio.create_task(self.handle_message(msg.conversation_id, msg.user_id, data))
+            asyncio.create_task(self.handle_user_message(msg.conversation_id, msg.user_id, data))
         else:
             asyncio.create_task(self.handle_group_message(msg.conversation_id, msg.user_id, data))
 
     async def run(self):
         try:
-            await super().run()
+            while not self.paused:
+                try:
+                    await super().run()
+                except websockets.exceptions.ConnectionClosedError as e:
+                    logger.exception(e)
+                    await asyncio.sleep(3.0)
+                    self.ws = None
+                #asyncio.exceptions.TimeoutError
+                except Exception as e:
+#
+                    logger.exception(e)
+                    await asyncio.sleep(3.0)
+                    self.ws = None
         except asyncio.CancelledError:
             if self.ws:
                 await self.ws.close()
             if self.web_client:
                 await self.web_client.aclose()
-            logger.info("mixin websocket received CancelledError, exit...")
+            logger.info("mixin websocket was cancelled!")
 
     async def close(self):
         for bot in self.bots:
@@ -390,11 +408,7 @@ async def start(config_file):
     asyncio.create_task(bot.run())
     print('started')
     while not bot.paused:
-        try:
-            await asyncio.sleep(1.0)
-        except asyncio.CancelledError:
-            logger.info("+++start received CancelledError, exit...")
-            return
+        await asyncio.sleep(1.0)
 
 async def stop():
     global bot
