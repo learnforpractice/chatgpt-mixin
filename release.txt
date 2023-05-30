@@ -1,2 +1,2 @@
-v0.1.7 release
-1. Improve SIGINT & SIGTERM signal handling
+v0.1.8 release
+1. 1. Fix Python distribution 2. change handle_message to handle_user_message for avoid methdo name conflict
