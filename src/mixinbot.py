@@ -126,6 +126,15 @@ class MixinBot(MixinWSApi):
         super().__init__(config['bot_config'], on_message=self.on_message)
         self.chatgpt_accounts = config['accounts']
         self.openai_api_keys = config['openai_api_keys']
+        if 'openai_base_url' in config:
+            self.openai_base_url = config['openai_base_url']
+        else:
+            self.openai_base_url = ''
+
+        if 'openai_proxy_url' in config:
+            self.openai_proxy_url = config['openai_proxy_url']
+        else:
+            self.openai_proxy_url = ''
 
         self.client_id = config['bot_config']['client_id']
 
@@ -161,7 +170,7 @@ class MixinBot(MixinWSApi):
         if self.openai_api_keys:
             from .chatgpt_openai import ChatGPTBot
             for key in self.openai_api_keys:
-                bot = ChatGPTBot(key)
+                bot = ChatGPTBot(key, self.openai_base_url, self.openai_proxy_url)
                 await bot.init()
                 self.bots.append(bot)
         

@@ -9,9 +9,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-import openai
+from openai import AsyncOpenAI
 import tiktoken
 from pymixin import log
+import httpx
 
 logger = log.get_logger(__name__)
 logger.addHandler(log.handler)
@@ -37,8 +38,19 @@ class Message:
     completion: str
 
 class ChatGPTBot:
-    def __init__(self, api_key: str, stream=True):
-        openai.api_key = api_key
+    def __init__(self, api_key: str, base_url: str = '', proxy_url: str = '', stream=True):
+        if proxy_url:
+            proxies = {
+                "http://": proxy_url,
+                "https://": proxy_url
+            }
+        else:
+            proxies = {}
+        self.openai = AsyncOpenAI(
+            base_url=base_url,
+            api_key=api_key,
+            http_client=httpx.AsyncClient(proxies=proxies),
+        )
         self.conversation_id = uuid.uuid4()
 
         self.standby = False
@@ -233,15 +245,16 @@ class ChatGPTBot:
             return
         try:
             yield '[BEGIN]'
-            response = await openai.ChatCompletion.acreate(
+            response = await self.openai.chat.completions.create(
                 model="gpt-3.5-turbo",
-                messages=prompt
+                messages=prompt,
             )
-        except openai.error.InvalidRequestError as e:
+        except Exception as e:
             logger.exception(e)
             yield 'Sorry, I am not available now.'
             return
-        reply = response['choices'][0]['message']['content']
+        reply = response.choices[0].delta.content or ""
+
         logger.info('++++response: %s', reply)
         self.add_messsage(conversation_id, message, reply)
         yield reply
@@ -260,12 +273,12 @@ class ChatGPTBot:
         start_time = time.time()
         try:
             yield '[BEGIN]'
-            response = await openai.ChatCompletion.acreate(
+            response = await self.openai.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=prompt,
                 stream=True
             )
-        except openai.error.InvalidRequestError as e:
+        except Exception as e:
             logger.exception(e)
             yield 'Sorry, I am not available now.'
             return
@@ -275,13 +288,10 @@ class ChatGPTBot:
 
         async for event in response:
             collected_events.append(event)  # save the event response
-            # logger.info(event)
-            delta = event['choices'][0]['delta']
-            if not delta:
-                break
-            if not 'content' in delta:
+            # logger.info(event.choices)
+            if not event.choices:
                 continue
-            event_text = delta['content']  # extract the text
+            event_text = event.choices[0].delta.content or ""
             tokens.append(event_text)
             if event_text.endswith('\n'):
                 if time.time() - start_time > 3.0:
